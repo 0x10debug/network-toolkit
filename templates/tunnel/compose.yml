@@ -1,0 +1,53 @@
+# Tunnel Template — Caddy SSL + frp server on the VPS, frp client at home
+#
+# Caddy terminates TLS for the public domain and forwards to a local port that
+# the frp server (frps) exposes from a tunnel initiated by an frp client running
+# on a home/private network.
+#
+# Usage:
+#   1. Copy .env.example -> .env and fill in TUNNEL_DOMAIN, TUNNEL_LOCAL_PORT,
+#      FRP_TOKEN
+#   2. Copy Caddyfile.example -> Caddyfile and frps.toml.example -> frps.toml
+#   3. docker compose up -d
+#   4. On the home machine, run frpc pointing at this VPS:7000 with the same
+#      FRP_TOKEN, exposing the home service on TUNNEL_LOCAL_PORT.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TUNNEL_DOMAIN: ${TUNNEL_DOMAIN}
+      TUNNEL_LOCAL_PORT: ${TUNNEL_LOCAL_PORT}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data/caddy/data
+      - caddy-config:/data/caddy/config
+    networks:
+      - mb-proxy
+
+  frps:
+    image: snowdreamtech/frps:latest
+    container_name: frps
+    restart: unless-stopped
+    ports:
+      - "7000:7000"
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml:ro
+      - frps-data:/data/frps
+    networks:
+      - mb-proxy
+
+volumes:
+  caddy-data:
+  caddy-config:
+  frps-data:
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

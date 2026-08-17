@@ -1,0 +1,14 @@
+# cloudflared.example.yml — Cloudflare Tunnel ingress config
+#
+# Copy to cloudflared.yml. Place the tunnel credentials JSON file at
+# /etc/cloudflared/{$TUNNEL_ID}.json (mount it via the cloudflared-creds dir).
+#
+# The final catch-all service entry is required by cloudflared.
+
+tunnel: {$TUNNEL_ID}
+credentials-file: /etc/cloudflared/{$TUNNEL_ID}.json
+
+ingress:
+  - hostname: {$PRIMARY_DOMAIN}
+    service: http://caddy:80
+  - service: http_status:404

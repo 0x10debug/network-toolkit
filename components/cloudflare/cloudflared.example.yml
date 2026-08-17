@@ -1,0 +1,23 @@
+# Cloudflare Tunnel configuration
+# Docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /etc/cloudflared/YOUR_TUNNEL_ID.json
+
+# Ingress rules — route traffic to internal services
+ingress:
+  # Route to Caddy (which then routes to individual apps)
+  - hostname: example.com
+    service: http://caddy:80
+  
+  - hostname: app1.example.com
+    service: http://caddy:80
+  
+  - hostname: app2.example.com
+    service: http://caddy:80
+  
+  # Catch-all: return 404 for unmatched
+  - service: http_status:404
+
+# Logging
+loglevel: info

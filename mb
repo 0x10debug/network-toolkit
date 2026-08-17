@@ -1,0 +1,462 @@
+#!/usr/bin/env bash
+# mb — net command for VPS network infrastructure management
+# Reverse proxy, SSL, tunnel, and DDNS — all in one command.
+#
+# Usage:
+#   mb net list                     List available network templates
+#   mb net deploy <template>        Deploy a network template (interactive)
+#   mb net status                    Show network infrastructure status
+#   mb net proxy add <domain> <target>   Add reverse proxy route
+#   mb net proxy remove <domain>    Remove reverse proxy route
+#   mb net tunnel add <name>        Add a tunnel configuration
+#   mb net tunnel status            Show tunnel status
+#   mb net ssl list                 List SSL certificates
+#   mb net ssl renew                Force SSL certificate renewal
+#   mb net audit                    Audit port exposure
+#   mb net update                   Update network components
+#   mb net help                     Show help
+
+set -euo pipefail
+
+MB_NET_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=lib/common.sh
+source "${MB_NET_SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=lib/network.sh
+source "${MB_NET_SCRIPT_DIR}/lib/network.sh"
+# shellcheck source=lib/ssl.sh
+source "${MB_NET_SCRIPT_DIR}/lib/ssl.sh"
+# shellcheck source=lib/audit.sh
+source "${MB_NET_SCRIPT_DIR}/lib/audit.sh"
+
+# ── Help ─────────────────────────────────────────────────────────────────────
+
+mb_net_help() {
+    cat <<'HELP'
+mb net — VPS network infrastructure management
+
+USAGE:
+    mb net list                              List available network templates
+    mb net deploy <template> [OPTIONS]        Deploy a network template
+    mb net status                             Show network infrastructure status
+    mb net proxy add <domain> <target>        Add reverse proxy route
+    mb net proxy remove <domain>              Remove reverse proxy route
+    mb net tunnel add <name>                  Add tunnel configuration
+    mb net tunnel status                      Show tunnel status
+    mb net ssl list                           List SSL certificates
+    mb net ssl renew                          Force certificate renewal
+    mb net audit                              Audit port exposure
+    mb net update                             Update network components
+    mb net help                               Show this help
+
+OPTIONS for deploy:
+    --env-file FILE    Use existing .env file
+    --dry-run          Show what would be done without executing
+
+TEMPLATES:
+    website       Single site with Caddy + automatic SSL
+    multi-site    Multiple domains with Caddy + automatic SSL
+    tunnel        Reverse proxy + frp server for NAT traversal
+    full-stack    Caddy + frp + DDNS (all-in-one)
+    cloudflare    Cloudflare Tunnel (no inbound ports needed)
+
+EXAMPLES:
+    mb net list                                # See available templates
+    mb net deploy website                      # Deploy reverse proxy for one site
+    mb net deploy multi-site --env-file .env   # Deploy with existing config
+    mb net proxy add app.example.com app:8080  # Add a new route
+    mb net ssl list                            # Check certificate status
+    mb net audit                               # Audit exposed ports
+
+HELP
+}
+
+# ── List ─────────────────────────────────────────────────────────────────────
+
+mb_net_list() {
+    mb_step "Available network templates"
+    echo ""
+
+    local found=0
+    for dir in "$MB_TEMPLATES_DIR"/*/; do
+        [ -d "$dir" ] || continue
+        local name desc
+        name=$(basename "$dir")
+        [ -f "${dir}compose.yml" ] || continue
+        desc=$(head -1 "${dir}README.md" 2>/dev/null | sed 's/^# *//' || echo "(no description)")
+        printf "  %-15s %s\n" "$name" "$desc"
+        found=$((found + 1))
+    done
+
+    if [ "$found" -eq 0 ]; then
+        mb_warn "No templates found in: $MB_TEMPLATES_DIR"
+    else
+        echo ""
+        mb_info "Deploy with: mb net deploy <template-name>"
+    fi
+}
+
+# ── Deploy ───────────────────────────────────────────────────────────────────
+
+mb_net_deploy() {
+    local template="" env_file="" dry_run=false
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --env-file) env_file="$2"; shift 2 ;;
+            --dry-run)  dry_run=true; shift ;;
+            *)          template="$1"; shift ;;
+        esac
+    done
+
+    if [ -z "$template" ]; then
+        mb_die "Template name required. Run 'mb net list' to see available templates."
+    fi
+
+    if ! mb_template_exists "$template"; then
+        mb_die "Template not found: $template"
+    fi
+
+    mb_check_docker
+
+    local template_dir="${MB_TEMPLATES_DIR}/${template}"
+    local deploy_dir="${MB_DEPLOY_DIR}/${template}"
+
+    mb_step "Deploying network template: $template"
+
+    mb_network_ensure_proxy
+
+    mkdir -p "$deploy_dir"
+    cp "${template_dir}/compose.yml" "${deploy_dir}/compose.yml"
+
+    # Copy Caddyfile if exists
+    if [ -f "${template_dir}/Caddyfile.example" ]; then
+        cp "${template_dir}/Caddyfile.example" "${deploy_dir}/Caddyfile"
+    fi
+
+    # Copy frps config if exists
+    if [ -f "${template_dir}/frps.toml.example" ]; then
+        cp "${template_dir}/frps.toml.example" "${deploy_dir}/frps.toml"
+    fi
+
+    # Handle .env
+    if [ -n "$env_file" ]; then
+        [ -f "$env_file" ] || mb_die "Env file not found: $env_file"
+        cp "$env_file" "${deploy_dir}/.env"
+        mb_detail "Using env file: $env_file"
+    elif [ -f "${deploy_dir}/.env" ]; then
+        mb_detail "Using existing .env"
+    else
+        mb_info "Generating .env from template..."
+        _mb_net_env_generate "$template" "$deploy_dir"
+    fi
+
+    if [ "$dry_run" = true ]; then
+        mb_info "[dry-run] Would run: docker compose up -d"
+        docker compose -f "${deploy_dir}/compose.yml" --env-file "${deploy_dir}/.env" config --services 2>/dev/null | sed 's/^/    /'
+        return 0
+    fi
+
+    mb_info "Starting containers..."
+    docker compose -f "${deploy_dir}/compose.yml" --env-file "${deploy_dir}/.env" up -d 2>&1 | sed 's/^/    /'
+
+    date '+%Y-%m-%d %H:%M:%S' > "${deploy_dir}/.deployed"
+
+    echo ""
+    mb_info "Status:"
+    docker compose -f "${deploy_dir}/compose.yml" --env-file "${deploy_dir}/.env" ps 2>/dev/null | sed 's/^/    /'
+
+    mb_success "Network template '$template' deployed"
+    echo ""
+    mb_info "Next steps:"
+    mb_detail "Deploy apps: https://github.com/0x10debug/compose-recipes"
+    mb_detail "Set up monitoring: https://github.com/0x10debug/monitor-stack"
+}
+
+_mb_net_env_generate() {
+    local template="$1" deploy_dir="$2"
+    local env_example="${MB_TEMPLATES_DIR}/${template}/.env.example"
+
+    [ -f "$env_example" ] || { mb_warn "No .env.example"; return 1; }
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+
+        local key value
+        key="${line%%=*}"
+        value="${line#*=}"
+
+        if [ -z "$value" ]; then
+            case "$key" in
+                *_TOKEN|*_SECRET|FRP_TOKEN)
+                    echo "${key}=$(head -c 32 /dev/urandom | LC_ALL=C tr -dc 'a-zA-Z0-9')"
+                    mb_detail "Generated: $key"
+                    ;;
+                *_DOMAIN|*DOMAIN*)
+                    local domain
+                    domain=$(mb_ask_value "Enter value for ${key}" "example.com")
+                    echo "${key}=${domain}"
+                    ;;
+                *)
+                    local input
+                    input=$(mb_ask_value "Enter value for ${key}" "")
+                    echo "${key}=${input}"
+                    ;;
+            esac
+        else
+            echo "$line"
+        fi
+    done < "$env_example" > "${deploy_dir}/.env"
+    chmod 600 "${deploy_dir}/.env"
+}
+
+# ── Status ───────────────────────────────────────────────────────────────────
+
+mb_net_status() {
+    mb_check_docker
+
+    mb_step "Network infrastructure status"
+    echo ""
+
+    # Proxy network
+    if mb_network_check_proxy; then
+        mb_success "Proxy network: $MB_PROXY_NETWORK (active)"
+        mb_network_list_containers
+    else
+        mb_warn "Proxy network: $MB_PROXY_NETWORK (not created)"
+        mb_detail "Run 'mb net deploy <template>' to create it"
+    fi
+
+    echo ""
+
+    # Deployed templates
+    mb_info "Deployed network templates:"
+    for dir in "$MB_DEPLOY_DIR"/*/; do
+        [ -d "$dir" ] || continue
+        local name
+        name=$(basename "$dir")
+        [ -f "${dir}/.deployed" ] || continue
+        local deployed_at
+        deployed_at=$(cat "${dir}/.deployed")
+        echo "  $name (deployed: $deployed_at)"
+        if [ -f "${dir}/compose.yml" ] && [ -f "${dir}/.env" ]; then
+            docker compose -f "${dir}/compose.yml" --env-file "${dir}/.env" ps 2>/dev/null | sed 's/^/    /'
+        fi
+    done
+
+    echo ""
+
+    # SSL certificates
+    mb_ssl_list 2>/dev/null || true
+}
+
+# ── Proxy add/remove ─────────────────────────────────────────────────────────
+
+mb_net_proxy_add() {
+    local domain="${1:-}" target="${2:-}"
+
+    if [ -z "$domain" ] || [ -z "$target" ]; then
+        mb_die "Usage: mb net proxy add <domain> <target>\nExample: mb net proxy add app.example.com app-container:8080"
+    fi
+
+    mb_check_docker
+
+    # Find Caddy container
+    local caddy_container
+    caddy_container=$(docker ps --filter "name=caddy" --format "{{.Names}}" 2>/dev/null | head -1)
+    if [ -z "$caddy_container" ]; then
+        mb_die "No Caddy container found. Deploy a network template first: mb net deploy website"
+    fi
+
+    # Find Caddyfile
+    local caddyfile=""
+    for candidate in "${MB_DEPLOY_DIR}"/*/Caddyfile /data/caddy/Caddyfile; do
+        [ -f "$candidate" ] && caddyfile="$candidate" && break
+    done
+
+    if [ -z "$caddyfile" ]; then
+        mb_die "No Caddyfile found. Deploy a template first."
+    fi
+
+    mb_info "Adding route: $domain → $target"
+
+    # Append route to Caddyfile
+    cat >> "$caddyfile" <<CADDY_ROUTE
+
+# Added by mb net proxy add — $(date)
+${domain} {
+    reverse_proxy ${target}
+    import security_headers
+}
+CADDY_ROUTE
+
+    mb_detail "Route added to: $caddyfile"
+
+    # Reload Caddy
+    mb_info "Reloading Caddy..."
+    docker exec "$caddy_container" caddy reload --config /etc/caddy/Caddyfile 2>/dev/null \
+        && mb_success "Route active: https://$domain → $target" \
+        || mb_warn "Caddy reload failed. Caddy will pick up the change on next restart."
+}
+
+mb_net_proxy_remove() {
+    local domain="${1:-}"
+
+    if [ -z "$domain" ]; then
+        mb_die "Usage: mb net proxy remove <domain>"
+    fi
+
+    mb_check_docker
+
+    local caddyfile=""
+    for candidate in "${MB_DEPLOY_DIR}"/*/Caddyfile /data/caddy/Caddyfile; do
+        [ -f "$candidate" ] && caddyfile="$candidate" && break
+    done
+
+    if [ -z "$caddyfile" ]; then
+        mb_die "No Caddyfile found."
+    fi
+
+    mb_info "Removing route: $domain"
+
+    # Remove the domain block from Caddyfile
+    # This is a simple approach — removes lines between the domain marker and the closing brace
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk -v domain="$domain" '
+        $0 ~ "^" domain " {" { in_block=1; next }
+        in_block && /^}/ { in_block=0; next }
+        in_block { next }
+        { print }
+    ' "$caddyfile" > "$tmpfile"
+    mv "$tmpfile" "$caddyfile"
+
+    mb_detail "Route removed from: $caddyfile"
+
+    # Reload Caddy
+    local caddy_container
+    caddy_container=$(docker ps --filter "name=caddy" --format "{{.Names}}" 2>/dev/null | head -1)
+    if [ -n "$caddy_container" ]; then
+        docker exec "$caddy_container" caddy reload --config /etc/caddy/Caddyfile 2>/dev/null
+        mb_success "Route removed and Caddy reloaded"
+    fi
+}
+
+# ── Tunnel ───────────────────────────────────────────────────────────────────
+
+mb_net_tunnel_add() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        mb_die "Usage: mb net tunnel add <name>"
+    fi
+
+    mb_info "Tunnel configuration helper"
+    echo ""
+    mb_detail "To add a tunnel, you need to:"
+    mb_detail "1. Configure frp server (already deployed if using tunnel/full-stack template)"
+    mb_detail "2. Install frp client on your home machine"
+    mb_detail "3. Copy components/frp/frpc.toml.example to your home machine"
+    mb_detail "4. Edit it with your VPS IP and the FRP_TOKEN from .env"
+    mb_detail "5. Run: ./frpc -c frpc.toml"
+    echo ""
+    mb_warn "frp client runs on your HOME machine, not on the VPS."
+    mb_detail "See: https://github.com/fatedier/frp for frp client downloads"
+}
+
+mb_net_tunnel_status() {
+    mb_check_docker
+
+    mb_info "Tunnel (frp) status:"
+
+    local frps_container
+    frps_container=$(docker ps --filter "name=frps" --format "{{.Names}}" 2>/dev/null | head -1)
+
+    if [ -z "$frps_container" ]; then
+        mb_warn "No frp server container found"
+        mb_detail "Deploy with: mb net deploy tunnel (or full-stack)"
+        return 1
+    fi
+
+    mb_success "frp server running: $frps_container"
+
+    # Check frp dashboard if available
+    local frps_port
+    frps_port=$(docker port "$frps_container" 2>/dev/null | grep "7500" | head -1)
+    if [ -n "$frps_port" ]; then
+        mb_detail "Dashboard available on port 7500"
+    fi
+
+    # Show connected clients (from logs)
+    local recent_logs
+    recent_logs=$(docker logs --tail 20 "$frps_container" 2>&1 | grep -i "login" || echo "")
+    if [ -n "$recent_logs" ]; then
+        mb_detail "Recent connections:"
+        echo "$recent_logs" | sed 's/^/    /'
+    fi
+}
+
+# ── Update ───────────────────────────────────────────────────────────────────
+
+mb_net_update() {
+    mb_check_docker
+
+    mb_step "Updating network components"
+
+    for dir in "$MB_DEPLOY_DIR"/*/; do
+        [ -d "$dir" ] || continue
+        [ -f "${dir}/.deployed" ] || continue
+        local name
+        name=$(basename "$dir")
+        mb_info "Updating: $name"
+        docker compose -f "${dir}/compose.yml" --env-file "${dir}/.env" pull 2>&1 | sed 's/^/    /'
+        docker compose -f "${dir}/compose.yml" --env-file "${dir}/.env" up -d 2>&1 | sed 's/^/    /'
+        mb_success "Updated: $name"
+    done
+}
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+main() {
+    local subcommand="${1:-help}"
+    shift || true
+
+    case "$subcommand" in
+        list)     mb_net_list "$@" ;;
+        deploy)   mb_net_deploy "$@" ;;
+        status)   mb_net_status "$@" ;;
+        proxy)
+            local action="${1:-}"
+            shift || true
+            case "$action" in
+                add)     mb_net_proxy_add "$@" ;;
+                remove)  mb_net_proxy_remove "$@" ;;
+                *)       mb_die "Usage: mb net proxy add|remove ..." ;;
+            esac
+            ;;
+        tunnel)
+            local action="${1:-}"
+            shift || true
+            case "$action" in
+                add)     mb_net_tunnel_add "$@" ;;
+                status)  mb_net_tunnel_status "$@" ;;
+                *)       mb_die "Usage: mb net tunnel add|status" ;;
+            esac
+            ;;
+        ssl)
+            local action="${1:-}"
+            shift || true
+            case "$action" in
+                list)    mb_ssl_list "$@" ;;
+                renew)   mb_ssl_renew "$@" ;;
+                *)       mb_die "Usage: mb net ssl list|renew" ;;
+            esac
+            ;;
+        audit)    mb_audit_ports "$@" ;;
+        update)   mb_net_update "$@" ;;
+        help|-h|--help) mb_net_help ;;
+        *) mb_die "Unknown subcommand: $subcommand. Run 'mb net help' for usage." ;;
+    esac
+}
+
+main "$@"

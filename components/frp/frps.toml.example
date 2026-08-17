@@ -1,0 +1,19 @@
+# frp server configuration — runs on VPS
+bindPort = 7000
+
+# Authentication
+auth.token = "CHANGE_ME_TO_A_LONG_RANDOM_STRING"
+
+# Dashboard (optional, for monitoring)
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "CHANGE_ME"
+
+# Logging
+log.to = "/data/frps/frps.log"
+log.level = "info"
+log.maxDays = 7
+
+# TLS (force encryption)
+transport.tls.force = true

@@ -1,0 +1,29 @@
+{
+    # Global options
+    admin off
+    auto_https disable_redirects
+    # Email for Let's Encrypt
+    email {$LETSENCRYPT_EMAIL:}
+    
+    # Default security headers (snippet)
+    (security_headers) {
+        header {
+            Strict-Transport-Security "max-age=31536000; includeSubDomains"
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Referrer-Policy "strict-origin-when-cross-origin"
+            Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        }
+    }
+    
+    # Logging snippet
+    (logging) {
+        log {
+            output file /data/caddy/access.log {
+                roll_size 50mb
+                roll_keep 3
+            }
+            format json
+        }
+    }
+}

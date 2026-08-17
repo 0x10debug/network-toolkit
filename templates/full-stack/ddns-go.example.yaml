@@ -1,0 +1,11 @@
+# DDNS configuration — edit for your DNS provider
+# Copy to ddns-go.yaml and fill in your provider details.
+# See https://github.com/jeessy/ddns-go for supported providers and options.
+
+provider: cloudflare
+token: "{$DDNS_TOKEN}"
+domains:
+  - "{$PRIMARY_DOMAIN}"
+ipv4:
+  enable: true
+  url: "https://api.ipify.org"

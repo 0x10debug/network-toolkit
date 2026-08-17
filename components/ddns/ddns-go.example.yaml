@@ -1,0 +1,35 @@
+# DDNS configuration for ddns-go
+# Supports: Cloudflare, Aliyun, Tencent, Dnspod, Huawei, Callback, Baidu
+
+# DNS Provider
+provider: cloudflare  # change to your provider
+
+# API token (get from your DNS provider)
+token: "YOUR_API_TOKEN"
+
+# Domains to update
+domains:
+  - "example.com"
+  - "*.example.com"
+
+# IPv4 settings
+ipv4:
+  enable: true
+  # Get public IP from this URL
+  url: "https://api.ipify.org"
+  # Or specify interface
+  # interface: eth0
+
+# IPv6 settings
+ipv6:
+  enable: false
+  url: "https://api6.ipify.org"
+
+# Update interval (minutes)
+interval: 5
+
+# Web UI
+web:
+  listen: ":9876"
+  user: "admin"
+  password: "CHANGE_ME"

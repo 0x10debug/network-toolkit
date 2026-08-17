@@ -1,0 +1,65 @@
+# Full Stack Template — reverse proxy + SSL + tunnel + DDNS, all in one
+#
+# Combines:
+#   - Caddy: multi-site reverse proxy with automatic HTTPS
+#   - frps : frp server accepting tunnels from home/private networks
+#   - ddns-go: keeps a DNS record pointed at this VPS's dynamic IP
+#
+# Usage:
+#   1. Copy .env.example -> .env and fill in PRIMARY_DOMAIN, FRP_TOKEN, DDNS_TOKEN
+#   2. Copy Caddyfile.example -> Caddyfile, frps.toml.example -> frps.toml,
+#      ddns-go.example.yaml -> ddns-go.yaml
+#   3. Edit ddns-go.yaml for your DNS provider
+#   4. docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PRIMARY_DOMAIN: ${PRIMARY_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data/caddy/data
+      - caddy-config:/data/caddy/config
+    networks:
+      - mb-proxy
+
+  frps:
+    image: snowdreamtech/frps:latest
+    container_name: frps
+    restart: unless-stopped
+    ports:
+      - "7000:7000"
+    volumes:
+      - ./frps.toml:/etc/frp/frps.toml:ro
+      - frps-data:/data/frps
+    networks:
+      - mb-proxy
+
+  ddns-go:
+    image: jeessy/ddns-go:latest
+    container_name: ddns-go
+    restart: unless-stopped
+    ports:
+      - "9876:9876"
+    volumes:
+      - ./ddns-go.yaml:/etc/ddns-go/ddns-go.yaml:ro
+      - ddns-data:/data/ddns-go
+    networks:
+      - mb-proxy
+
+volumes:
+  caddy-data:
+  caddy-config:
+  frps-data:
+  ddns-data:
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

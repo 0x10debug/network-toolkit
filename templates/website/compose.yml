@@ -1,0 +1,37 @@
+# Website Template — single-site Caddy reverse proxy with automatic HTTPS
+#
+# Caddy terminates TLS (Let's Encrypt / ZeroSSL automatic certs) and forwards
+# traffic to a backend app reachable on the shared mb-proxy network.
+#
+# Usage:
+#   1. Copy .env.example -> .env and fill in your domain + backend host/port
+#   2. Copy Caddyfile.example -> Caddyfile and adjust if needed
+#   3. docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      PRIMARY_DOMAIN: ${PRIMARY_DOMAIN}
+      APP_HOST: ${APP_HOST}
+      APP_PORT: ${APP_PORT}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data/caddy/data
+      - caddy-config:/data/caddy/config
+    networks:
+      - mb-proxy
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}
