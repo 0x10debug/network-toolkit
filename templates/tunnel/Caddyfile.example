@@ -1,0 +1,20 @@
+# Caddyfile.example — route public domain to the frp tunnel target
+#
+# Caddy forwards traffic to localhost:TUNNEL_LOCAL_PORT, which is the port the
+# frp server exposes from the home network via the tunnel.
+
+{$TUNNEL_DOMAIN} {
+    reverse_proxy localhost:{$TUNNEL_LOCAL_PORT}
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /data/caddy/access.log
+        format json
+    }
+}

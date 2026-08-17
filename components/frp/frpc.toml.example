@@ -1,0 +1,24 @@
+# frp client configuration — runs on your home machine
+serverAddr = "YOUR_VPS_IP"
+serverPort = 7000
+
+auth.token = "MUST_MATCH_SERVER_TOKEN"
+
+# TLS encryption
+transport.tls.enable = true
+
+# Example: expose a home web service
+[[proxies]]
+name = "home-web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8080
+remotePort = 8080
+
+# Example: expose home SSH (use with caution)
+# [[proxies]]
+# name = "home-ssh"
+# type = "tcp"
+# localIP = "127.0.0.1"
+# localPort = 22
+# remotePort = 2222

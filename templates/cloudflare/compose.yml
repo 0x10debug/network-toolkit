@@ -1,0 +1,51 @@
+# Cloudflare Tunnel Template — no inbound ports needed on the VPS
+#
+# cloudflared maintains an outbound tunnel to Cloudflare; all public traffic
+# flows through Cloudflare to the VPS over that tunnel. Caddy runs as an
+# internal reverse proxy on the mb-proxy network only — it is NOT published on
+# host ports 80/443.
+#
+# Usage:
+#   1. Copy .env.example -> .env and fill in TUNNEL_ID, TUNNEL_TOKEN,
+#      PRIMARY_DOMAIN
+#   2. Copy cloudflared.example.yml -> cloudflared.yml and place the tunnel
+#      credentials file at /etc/cloudflared/{$TUNNEL_ID}.json (or adjust the
+#      path in the volume mount)
+#   3. docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    # No host port mapping — Caddy is reachable only on the mb-proxy network.
+    environment:
+      PRIMARY_DOMAIN: ${PRIMARY_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data/caddy/data
+      - caddy-config:/data/caddy/config
+    networks:
+      - mb-proxy
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    volumes:
+      - ./cloudflared.yml:/etc/cloudflared/config.yml:ro
+      - ./cloudflared-creds:/etc/cloudflared
+    networks:
+      - mb-proxy
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

@@ -1,0 +1,7 @@
+# frps.toml.example — frp server config (runs on the VPS)
+#
+# Copy to frps.toml. The frp client (frpc) at home connects to this server on
+# bindPort and authenticates with the same auth.token.
+
+bindPort = 7000
+auth.token = "{$FRP_TOKEN}"

@@ -1,0 +1,37 @@
+# Caddyfile.example — multi-site reverse proxy with tunnel support
+#
+# Copy to Caddyfile. The first block serves a local backend on the mb-proxy
+# network; the second block routes through the frp tunnel to a home service.
+# Add or remove blocks as needed.
+
+{$PRIMARY_DOMAIN} {
+    reverse_proxy {$PRIMARY_DOMAIN}:8080
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /data/caddy/access.log
+        format json
+    }
+}
+
+home.{$PRIMARY_DOMAIN} {
+    reverse_proxy localhost:8080
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /data/caddy/access.log
+        format json
+    }
+}

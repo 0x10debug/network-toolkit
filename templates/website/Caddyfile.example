@@ -1,0 +1,20 @@
+# Caddyfile.example — single-site reverse proxy with security headers
+#
+# Copy to Caddyfile and let Caddy read {$PRIMARY_DOMAIN}, {$APP_HOST},
+# {$APP_PORT} from the environment (set in .env / compose).
+
+{$PRIMARY_DOMAIN} {
+    reverse_proxy {$APP_HOST}:{$APP_PORT}
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    log {
+        output file /data/caddy/access.log
+        format json
+    }
+}

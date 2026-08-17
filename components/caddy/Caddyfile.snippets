@@ -1,0 +1,24 @@
+# Reverse proxy to a container on mb-proxy network
+(proxy_to) {
+    reverse_proxy {args[0]} {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# WebSocket support
+(websocket) {
+    reverse_proxy {args[0]} {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# Basic auth protection
+(auth) {
+    basicauth {
+        {args[0]} {args[1]}
+    }
+}
