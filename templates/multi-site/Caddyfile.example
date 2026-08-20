@@ -1,10 +1,23 @@
-# Caddyfile.example — multi-site reverse proxy with security headers
+# Caddyfile.example — multi-site reverse proxy with security headers (Caddy v2.9)
 #
 # Copy to Caddyfile. Each block is one domain routed to its own backend.
 # Add or remove blocks to match the number of sites you host.
+#
+# HTTP/3 (QUIC) is enabled via the global protocols directive below.
+# The compose file maps UDP 443 so QUIC traffic reaches Caddy.
+
+{
+    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
+    protocols h1 h2 h3
+}
 
 {$SITE_1_DOMAIN} {
-    reverse_proxy {$SITE_1_HOST}:{$SITE_1_PORT}
+    reverse_proxy {$SITE_1_HOST}:{$SITE_1_PORT} {
+        # Active health check (Caddy v2.9)
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -20,7 +33,12 @@
 }
 
 {$SITE_2_DOMAIN} {
-    reverse_proxy {$SITE_2_HOST}:{$SITE_2_PORT}
+    reverse_proxy {$SITE_2_HOST}:{$SITE_2_PORT} {
+        # Active health check (Caddy v2.9)
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"

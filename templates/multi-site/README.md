@@ -1,14 +1,19 @@
 # Multi-Site Template
 
-A multi-domain reverse proxy using **Caddy** with automatic HTTPS.
+A multi-domain reverse proxy using **Caddy v2.9** with automatic HTTPS and
+HTTP/3 (QUIC) support.
 
 One Caddy instance terminates TLS for several domains and forwards each domain
 to its own backend application, all over the shared `mb-proxy` Docker network.
+HTTP/3 is enabled via the `protocols h1 h2 h3` directive and the compose file
+maps UDP 443 so QUIC traffic reaches Caddy.
 
 ## What it does
 
 - Hosts multiple domains on a single Caddy instance.
 - Obtains and renews a TLS certificate for each domain automatically.
+- Serves traffic over HTTP/1.1, HTTP/2, and HTTP/3 (QUIC).
+- Actively health-checks each backend and marks it down if it stops responding.
 - Applies a consistent set of security headers to every site.
 - Writes JSON access logs to `/data/caddy/access.log`.
 
@@ -59,6 +64,7 @@ Each site block sets:
 
 ## Notes
 
-- Ports `80` and `443` must be open on the host for ACME challenges.
+- Ports `80` and `443` (TCP + UDP) must be open on the host for ACME challenges
+  and HTTP/3. Allow **UDP 443** inbound for QUIC.
 - All domains must point (A/AAAA records) to this host's public IP.
 - Certificate data persists in the `caddy-data` / `caddy-config` volumes.

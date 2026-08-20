@@ -1,12 +1,17 @@
-# Reverse proxy to a container on mb-proxy network
+# Reverse proxy to a container on mb-proxy network (Caddy v2.9)
+# Includes an active health check so Caddy marks the backend down quickly
+# if it stops responding, instead of letting requests hang.
 (proxy_to) {
     reverse_proxy {args[0]} {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-Proto {scheme}
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
     }
 }
 
-# WebSocket support
+# WebSocket support (Caddy v2.9)
 (websocket) {
     reverse_proxy {args[0]} {
         header_up Host {host}

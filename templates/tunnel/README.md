@@ -3,10 +3,10 @@
 Expose a home/private-network service to the public internet with a real TLS
 certificate, without opening any inbound port on the home network.
 
-**Caddy** runs on the VPS and handles SSL for the public domain. **frp server**
-(frps) runs on the VPS and accepts a tunnel from an **frp client** (frpc) running
-on the home network. Caddy forwards public traffic through the tunnel to the
-home service.
+**Caddy v2.9** runs on the VPS and handles SSL for the public domain, with
+HTTP/3 (QUIC) support. **frp server** (frps) runs on the VPS and accepts a
+tunnel from an **frp client** (frpc) running on the home network. Caddy
+forwards public traffic through the tunnel to the home service.
 
 ## Architecture
 
@@ -94,4 +94,6 @@ to.
 - The frp client at home must use the **same** `auth.token` and `remotePort` as
   configured here.
 - `TUNNEL_LOCAL_PORT` on the VPS must match the frpc `remotePort`.
+- Ports `80` and `443` (TCP + UDP) must be open on the host. Allow **UDP 443**
+  inbound for HTTP/3 (QUIC).
 - Certificate data persists in the `caddy-data` / `caddy-config` volumes.

@@ -1,15 +1,19 @@
 # Website Template
 
-A single-site reverse proxy using **Caddy** with automatic HTTPS.
+A single-site reverse proxy using **Caddy v2.9** with automatic HTTPS and
+HTTP/3 (QUIC) support.
 
 Caddy terminates TLS (automatic certificates via Let's Encrypt / ZeroSSL) and
 forwards all traffic to a single backend application reachable on the shared
-`mb-proxy` Docker network.
+`mb-proxy` Docker network. HTTP/3 is enabled via the `protocols h1 h2 h3`
+directive and the compose file maps UDP 443 so QUIC traffic reaches Caddy.
 
 ## What it does
 
 - Proxies one domain to one backend app.
 - Obtains and renews TLS certificates automatically (no manual cert management).
+- Serves traffic over HTTP/1.1, HTTP/2, and HTTP/3 (QUIC).
+- Actively health-checks the backend and marks it down if it stops responding.
 - Adds a set of sensible security headers to every response.
 - Writes JSON access logs to `/data/caddy/access.log`.
 
@@ -52,9 +56,22 @@ The Caddyfile sets the following headers on every response:
 
 Adjust or extend these in `Caddyfile` to match your application's needs.
 
+## HTTP/3 (QUIC)
+
+Caddy v2.9 enables HTTP/3 via the `protocols h1 h2 h3` global directive. The
+compose file maps both TCP and UDP 443. Make sure your firewall allows **UDP
+443** inbound — otherwise clients fall back to HTTP/2 transparently.
+
+You can verify HTTP/3 is working with:
+
+```bash
+curl -I --http3 https://your-domain.com
+```
+
 ## Notes
 
-- Ports `80` and `443` must be open on the host and reachable from the internet
-  for Caddy to complete the ACME HTTP-01 / TLS-ALPN challenge.
+- Ports `80` and `443` (TCP + UDP) must be open on the host and reachable from
+  the internet for Caddy to complete the ACME HTTP-01 / TLS-ALPN challenge and
+  serve HTTP/3.
 - Certificate data is persisted in the `caddy-data` and `caddy-config` named
   volumes so renewals survive container recreation.
