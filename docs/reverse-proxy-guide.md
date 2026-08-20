@@ -8,9 +8,10 @@ A reverse proxy sits between the internet and your applications. When someone vi
 
 ## Why Caddy?
 
-This toolkit uses [Caddy](https://caddyserver.com/) as the default reverse proxy because:
+This toolkit uses [Caddy v2.9](https://caddyserver.com/) as the default reverse proxy because:
 
 - **Automatic HTTPS** — obtains and renews Let's Encrypt certificates with zero configuration
+- **HTTP/3 (QUIC)** — built-in support for the latest HTTP protocol, faster connection setup and better performance on unreliable networks
 - **Simple syntax** — Caddyfile is human-readable, no complex YAML
 - **Small footprint** — single binary, low memory usage
 - **Production-ready** — used by major projects, battle-tested
@@ -28,10 +29,12 @@ mb net deploy website
 ```
 
 Caddy will:
-1. Listen on ports 80 and 443
+1. Listen on ports 80 and 443 (TCP + UDP)
 2. Obtain an SSL certificate for `app.example.com` from Let's Encrypt
-3. Route all traffic to the `jellyfin` container on port 8096
-4. Inject security headers (HSTS, X-Content-Type-Options, etc.)
+3. Serve traffic over HTTP/1.1, HTTP/2, and HTTP/3 (QUIC)
+4. Route all traffic to the `jellyfin` container on port 8096
+5. Actively health-check the backend and mark it down if it stops responding
+6. Inject security headers (HSTS, X-Content-Type-Options, etc.)
 
 ## Adding More Routes
 
@@ -101,6 +104,34 @@ docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ## Using Traefik Instead
 
 If you prefer Traefik over Caddy, you can use the [Traefik components](../components/) as a starting point. However, Caddy is recommended for simplicity.
+
+## HTTP/3 (QUIC)
+
+All templates in this toolkit enable HTTP/3 via the `protocols h1 h2 h3` global
+directive in the Caddyfile and map UDP 443 in the compose file. This allows
+clients that support QUIC to benefit from faster connection setup and improved
+performance on lossy networks.
+
+### Requirements
+
+- **Firewall**: allow inbound UDP 443 in addition to TCP 443.
+- **Client support**: modern browsers (Chrome, Firefox, Edge, Safari) support
+  HTTP/3 automatically. `curl` needs the `--http3` flag.
+- **Fallback**: if UDP 443 is blocked, Caddy transparently falls back to
+  HTTP/2 — no configuration change needed.
+
+### Verifying HTTP/3
+
+```bash
+# Check if the server advertises HTTP/3 (look for "alt-svc: h3=...")
+curl -I https://your-domain.com
+
+# Test an actual HTTP/3 request (requires curl built with HTTP/3 support)
+curl -I --http3 https://your-domain.com
+```
+
+For a dedicated HTTP/3 configuration example, see
+[`templates/caddy/http3/`](../templates/caddy/http3/).
 
 ## Troubleshooting
 
