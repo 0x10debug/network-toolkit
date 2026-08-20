@@ -1,11 +1,24 @@
-# Caddyfile.example — multi-site reverse proxy with tunnel support
+# Caddyfile.example — multi-site reverse proxy with tunnel support (Caddy v2.9)
 #
 # Copy to Caddyfile. The first block serves a local backend on the mb-proxy
 # network; the second block routes through the frp tunnel to a home service.
 # Add or remove blocks as needed.
+#
+# HTTP/3 (QUIC) is enabled via the global protocols directive below.
+# The compose file maps UDP 443 so QUIC traffic reaches Caddy.
+
+{
+    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
+    protocols h1 h2 h3
+}
 
 {$PRIMARY_DOMAIN} {
-    reverse_proxy {$PRIMARY_DOMAIN}:8080
+    reverse_proxy {$PRIMARY_DOMAIN}:8080 {
+        # Active health check (Caddy v2.9)
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -21,7 +34,12 @@
 }
 
 home.{$PRIMARY_DOMAIN} {
-    reverse_proxy localhost:8080
+    reverse_proxy localhost:8080 {
+        # Active health check (Caddy v2.9) — detects tunnel disconnection
+        health_uri /
+        health_interval 30s
+        health_timeout 5s
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"

@@ -1,12 +1,15 @@
-# Website Template — single-site Caddy reverse proxy with automatic HTTPS
+# HTTP/3 Example — single-site Caddy v2.9 reverse proxy with QUIC enabled
 #
-# Caddy terminates TLS (Let's Encrypt / ZeroSSL automatic certs) and forwards
-# traffic to a backend app reachable on the shared mb-proxy network.
+# This is a minimal example focused on HTTP/3 (QUIC). The key differences from
+# the standard website template are:
+#   1. UDP 443 is mapped explicitly (required for QUIC)
+#   2. The Caddyfile uses `protocols h1 h2 h3` to enable HTTP/3
 #
 # Usage:
 #   1. Copy .env.example -> .env and fill in your domain + backend host/port
-#   2. Copy Caddyfile.example -> Caddyfile and adjust if needed
-#   3. docker compose up -d
+#   2. Copy Caddyfile.example -> Caddyfile
+#   3. Ensure your firewall allows inbound UDP 443
+#   4. docker compose up -d
 
 services:
   caddy:
@@ -15,8 +18,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
-      - "443:443/udp"  # HTTP/3 (QUIC) — Caddy v2.9
+      - "443:443"        # TCP — HTTP/1.1 + HTTP/2
+      - "443:443/udp"    # UDP — HTTP/3 (QUIC)
     environment:
       PRIMARY_DOMAIN: ${PRIMARY_DOMAIN}
       APP_HOST: ${APP_HOST}
