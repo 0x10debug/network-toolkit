@@ -286,7 +286,11 @@ mb_net_proxy_add() {
 
 # Added by mb net proxy add — $(date)
 ${domain} {
-    reverse_proxy ${target}
+    reverse_proxy ${target} {
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+    }
     import security_headers
 }
 CADDY_ROUTE

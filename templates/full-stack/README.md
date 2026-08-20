@@ -1,13 +1,13 @@
 # Full Stack Template
 
 All-in-one networking stack for a VPS: **reverse proxy + automatic SSL +
-tunnel server + dynamic DNS**.
+tunnel server + dynamic DNS**, with HTTP/3 (QUIC) support.
 
 This template combines three services on the shared `mb-proxy` network:
 
-- **Caddy** — multi-site reverse proxy with automatic HTTPS (Let's Encrypt /
-  ZeroSSL). Serves local backends and routes one subdomain through the frp
-  tunnel to a home service.
+- **Caddy v2.9** — multi-site reverse proxy with automatic HTTPS (Let's Encrypt
+  / ZeroSSL) and HTTP/3. Serves local backends and routes one subdomain through
+  the frp tunnel to a home service.
 - **frps** — frp server that accepts a tunnel from an frp client on a home /
   private network, exposing a home service on the VPS without opening any
   inbound port at home.
@@ -109,4 +109,6 @@ Run frpc on the home machine.
 - The frp client at home must use the same `auth.token` and `remotePort`.
 - ddns-go config file format depends on your DNS provider — see the
   [ddns-go docs](https://github.com/jeessy/ddns-go).
+- Ports `80` and `443` (TCP + UDP) must be open. Allow **UDP 443** inbound for
+  HTTP/3 (QUIC).
 - Certificate data persists in the `caddy-data` / `caddy-config` volumes.

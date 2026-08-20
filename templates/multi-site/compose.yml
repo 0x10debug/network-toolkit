@@ -10,12 +10,13 @@
 
 services:
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.9-alpine
     container_name: caddy
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"  # HTTP/3 (QUIC) — Caddy v2.9
     environment:
       SITE_1_DOMAIN: ${SITE_1_DOMAIN}
       SITE_1_HOST: ${SITE_1_HOST}

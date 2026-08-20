@@ -1,10 +1,12 @@
 {
-    # Global options
+    # Global options (Caddy v2.9)
     admin off
     auto_https disable_redirects
+    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
+    protocols h1 h2 h3
     # Email for Let's Encrypt
     email {$LETSENCRYPT_EMAIL:}
-    
+
     # Default security headers (snippet)
     (security_headers) {
         header {
@@ -15,7 +17,7 @@
             Permissions-Policy "geolocation=(), microphone=(), camera=()"
         }
     }
-    
+
     # Logging snippet
     (logging) {
         log {
