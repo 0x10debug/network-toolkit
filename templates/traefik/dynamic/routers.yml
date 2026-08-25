@@ -1,0 +1,49 @@
+# routers.yml — example Traefik v3.6 dynamic routers
+#
+# Demonstrates three patterns:
+#   1. whoami — a plain HTTP backend reached over the mb-proxy network.
+#   2. dashboard — Traefik's own dashboard, protected by basic-auth + TLS.
+#   3. catch-all TLS — the letsencrypt resolver is applied automatically.
+#
+# Add your own routers here or via Docker labels on your app containers.
+# Docs: https://doc.traefik.io/traefik/v3.6/routing/routers/
+
+http:
+  routers:
+
+    # ── whoami demo service ─────────────────────────────────────────────────
+    # Routes https://whoami.${PRIMARY_DOMAIN} to the traefik/whoami container.
+    # Replace with your real backend service on the mb-proxy network.
+    whoami:
+      rule: "Host(`whoami.${PRIMARY_DOMAIN}`)"
+      entryPoints:
+        - websecure
+      service: whoami
+      middlewares:
+        - secure-headers@file
+        - compress@file
+      tls:
+        certResolver: letsencrypt
+
+    # ── Traefik dashboard ───────────────────────────────────────────────────
+    # Exposes the dashboard on https://traefik.${PRIMARY_DOMAIN} behind basic
+    # auth. Update basic-auth@file users before enabling in production, or
+    # restrict to the ip-whitelist middleware instead.
+    dashboard:
+      rule: "Host(`traefik.${PRIMARY_DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+      entryPoints:
+        - websecure
+      service: api@internal
+      middlewares:
+        - basic-auth@file
+      tls:
+        certResolver: letsencrypt
+
+  services:
+
+    # whoami backend — the official traefik/whoami image. Run it with:
+    #   docker run -d --name whoami --network mb-proxy traefik/whoami
+    whoami:
+      loadBalancer:
+        servers:
+          - url: "http://whoami:80"

@@ -1,0 +1,66 @@
+# middlewares.yml — reusable Traefik v3.6 middlewares
+#
+# These are defined in the file provider so any router (file or docker) can
+# reference them by name, e.g. `middlewares: secure-headers@file`.
+# Docs: https://doc.traefik.io/traefik/v3.6/middlewares/overview/
+
+http:
+  middlewares:
+
+    # ── Rate limiting ───────────────────────────────────────────────────────
+    # 100 requests averaged over 1 second per source IP. Tune for your apps.
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1s
+        burst: 200
+
+    # ── Security headers ────────────────────────────────────────────────────
+    # Mirrors the Caddy (security_headers) snippet so both proxies ship the
+    # same baseline: HSTS, nosniff, DENY framing, referrer policy.
+    secure-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "geolocation=(), microphone=(), camera=()"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+
+    # ── Compression ─────────────────────────────────────────────────────────
+    compress:
+      compress:
+        excludedContentTypes:
+          - "video/mp4"
+          - "application/zip"
+
+    # ── HTTP → HTTPS redirect ───────────────────────────────────────────────
+    # Fallback middleware for routers that opt out of the entryPoint-level
+    # redirect in traefik.yml. Use on the `web` entry point.
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    # ── Basic auth ──────────────────────────────────────────────────────────
+    # Replace the placeholder hash with `htpasswd -nB admin` output.
+    # Multiple users: comma-separated list of user:hash pairs.
+    basic-auth:
+      basicAuth:
+        users:
+          - "admin:$apr1$placeholder$replaceWithRealHash"
+        realm: "Restricted"
+
+    # ── IP allow-list ───────────────────────────────────────────────────────
+    # Only listed source IPs/CIDRs may reach the router. Use for admin
+    # endpoints (dashboard, API) exposed on websecure.
+    ip-whitelist:
+      ipAllowList:
+        sourceRange:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"

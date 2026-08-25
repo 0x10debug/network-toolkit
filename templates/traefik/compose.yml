@@ -1,0 +1,49 @@
+# compose.yml — Traefik v3.6 reverse proxy with automatic SSL
+#
+# Pinned to traefik:v3.6.0 (never :latest). Ports 80/443/8080 are mapped to
+# the host; the docker socket is mounted read-only so Traefik can discover
+# labeled containers. acme.json is persisted on a named volume and must be
+# chmod 600 inside the container (handled by the command below).
+#
+# Usage:
+#   1. cp .env.example .env  && edit .env (PRIMARY_DOMAIN, ACME_EMAIL)
+#   2. cp traefik.example.yml traefik.yml  (or use the bundled static config)
+#   3. docker network create mb-proxy   (once per host)
+#   4. docker compose up -d
+
+services:
+  traefik:
+    image: traefik:v3.6.0
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"       # web — HTTP, ACME redirect
+      - "443:443"     # websecure — HTTPS
+      - "8080:8080"   # traefik — dashboard/API (bind to 127.0.0.1 in prod)
+    command:
+      - "--configFile=/etc/traefik/traefik.yml"
+    environment:
+      PRIMARY_DOMAIN: ${PRIMARY_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+      MB_PROXY_NETWORK: ${MB_PROXY_NETWORK:-mb-proxy}
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-acme:/acme
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mb-proxy
+
+volumes:
+  traefik-acme:
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

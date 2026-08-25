@@ -59,6 +59,7 @@ TEMPLATES:
     tunnel        Reverse proxy + frp server for NAT traversal
     full-stack    Caddy + frp + DDNS (all-in-one)
     cloudflare    Cloudflare Tunnel (no inbound ports needed)
+    traefik       Traefik v3.6 reverse proxy + automatic SSL + dashboard
 
 EXAMPLES:
     mb net list                                # See available templates
@@ -132,6 +133,16 @@ mb_net_deploy() {
     # Copy Caddyfile if exists
     if [ -f "${template_dir}/Caddyfile.example" ]; then
         cp "${template_dir}/Caddyfile.example" "${deploy_dir}/Caddyfile"
+    fi
+
+    # Copy Traefik static config if exists
+    if [ -f "${template_dir}/traefik.example.yml" ]; then
+        cp "${template_dir}/traefik.example.yml" "${deploy_dir}/traefik.yml"
+    fi
+
+    # Copy Traefik dynamic config directory if exists
+    if [ -d "${template_dir}/dynamic" ]; then
+        cp -r "${template_dir}/dynamic" "${deploy_dir}/dynamic"
     fi
 
     # Copy frps config if exists

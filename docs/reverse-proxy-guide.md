@@ -103,7 +103,66 @@ docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 
 ## Using Traefik Instead
 
-If you prefer Traefik over Caddy, you can use the [Traefik components](../components/) as a starting point. However, Caddy is recommended for simplicity.
+If you prefer Traefik over Caddy, the toolkit ships a full **Traefik v3.6**
+template at [`templates/traefik/`](../templates/traefik/) with reusable
+components at [`components/traefik/`](../components/traefik/).
+
+### Why Traefik?
+
+- **Docker-native discovery** — containers with `traefik.enable=true` labels are
+  routed automatically; no manual config edits per service.
+- **Dashboard** — built-in web UI for inspecting routers, services, and
+  middlewares (Caddy has no equivalent).
+- **Dynamic config** — file provider hot-reloads YAML without restarting.
+- **Middleware library** — rate-limit, secure-headers, compress, basic-auth,
+  ip-whitelist, redirect — all pre-defined in `dynamic/middlewares.yml`.
+
+### Deploy
+
+```bash
+mb net deploy traefik
+# Enter PRIMARY_DOMAIN and ACME_EMAIL
+```
+
+This starts `traefik:v3.6.0` (pinned) on ports 80/443/8080, obtains a Let's
+Encrypt certificate via the TLS-ALPN-01 challenge, and routes
+`https://whoami.${PRIMARY_DOMAIN}` to a demo backend.
+
+### Add a route via Docker labels
+
+```yaml
+services:
+  myapp:
+    image: myapp:latest
+    networks: [mb-proxy]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.myapp.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.myapp.entrypoints=websecure"
+      - "traefik.http.routers.myapp.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.myapp.middlewares=secure-headers@file,compress@file"
+      - "traefik.http.services.myapp.loadbalancer.server.port=8080"
+networks:
+  mb-proxy:
+    external: true
+```
+
+Traefik discovers the container automatically — no reload needed.
+
+### Caddy vs Traefik
+
+| | Caddy | Traefik |
+|---|---|---|
+| Config | Caddyfile (human-readable) | YAML (static + dynamic) |
+| Automatic HTTPS | Built-in, zero-config | ACME resolver |
+| HTTP/3 (QUIC) | Yes (`protocols h1 h2 h3`) | Not in v3.6 stable |
+| Service discovery | Manual `reverse_proxy` | Docker labels (auto) |
+| Dashboard | None (`admin off`) | Built-in web UI |
+| Best for | Simple sites, HTTP/3 | Many Docker services, dashboard |
+
+**Recommendation**: Caddy for single/few sites where HTTP/3 and minimal config
+matter; Traefik for Docker-heavy setups with many services and a desire for
+label-based auto-discovery plus a dashboard.
 
 ## HTTP/3 (QUIC)
 

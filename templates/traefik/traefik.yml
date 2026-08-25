@@ -1,0 +1,105 @@
+# traefik.yml — Traefik v3.6 static configuration
+#
+# Static configuration is read once at startup. Changes here require a
+# container restart. Dynamic configuration (routers, middlewares, TLS) lives
+# in the dynamic/ directory and is hot-reloaded.
+#
+# Docs: https://doc.traefik.io/traefik/v3.6/
+
+# ── Entry points ─────────────────────────────────────────────────────────────
+# Each entry point binds Traefik to a host port. The web entry point handles
+# plain HTTP (used for ACME HTTP-01 and redirected to websecure); websecure
+# handles HTTPS; traefik is the (internal) dashboard/API port.
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        # Automatic TLS for every router attached to this entry point.
+        # Per-domain certs come from the letsencrypt resolver below.
+        certResolver: letsencrypt
+        domains:
+          - main: "${PRIMARY_DOMAIN}"
+            sans:
+              - "*.${PRIMARY_DOMAIN}"
+
+  traefik:
+    address: ":8080"
+
+# ── Providers ────────────────────────────────────────────────────────────────
+# Docker provider discovers containers with traefik.enable=true labels.
+# exposedByDefault=false means only explicitly labeled containers are routed.
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: "${MB_PROXY_NETWORK:-mb-proxy}"
+    watch: true
+
+  # File provider reads dynamic YAML from the dynamic/ directory. Changes are
+  # hot-reloaded without restarting Traefik.
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+# ── Certificate resolvers ────────────────────────────────────────────────────
+# Let's Encrypt via the TLS-ALPN-01 challenge. This requires port 443 to be
+# reachable from the internet. The ACME account email is read from the
+# environment (ACME_EMAIL) — set it in .env, never commit a real address.
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: "/acme/acme.json"
+      tlsChallenge: {}
+
+# ── API & dashboard ──────────────────────────────────────────────────────────
+# The dashboard is served on the traefik entry point (:8080). insecure=false
+# means it is NOT exposed publicly by default — bind it to localhost or put
+# it behind an authenticated router (see dynamic/routers.yml).
+api:
+  dashboard: true
+  insecure: false
+
+# ── Ping ─────────────────────────────────────────────────────────────────────
+# Health endpoint used by the compose healthcheck (`traefik healthcheck --ping`)
+# and external monitors. Served on the traefik entry point (:8080).
+ping:
+  entryPoint: traefik
+
+# ── Access logs ──────────────────────────────────────────────────────────────
+# JSON access logs to stdout so `docker logs traefik` captures them. Switch
+# to a file volume if you want persistent logs.
+accessLog:
+  format: json
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop
+      names:
+        Authorization: drop
+        Cookie: drop
+        Set-Cookie: drop
+
+# ── Tracing ──────────────────────────────────────────────────────────────────
+# Tracing is disabled by default to avoid a hard dependency on a backend.
+# Uncomment and configure when you have a collector (Jaeger, OTLP, ...) running.
+# tracing:
+#   serviceName: traefik
+#   otlp:
+#     endpoint: "otel-collector:4318"
+#     protocol: http
+
+# ── Global ───────────────────────────────────────────────────────────────────
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
