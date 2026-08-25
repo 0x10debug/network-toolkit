@@ -1,0 +1,69 @@
+# dynamic.snippets.yml — common Traefik v3.6 middlewares + sample router
+#
+# Copy the blocks you need into your dynamic/ directory. Middlewares are
+# referenced as <name>@file from any router (file or docker provider).
+# Docs: https://doc.traefik.io/traefik/v3.6/middlewares/overview/
+
+http:
+  middlewares:
+
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1s
+        burst: 200
+
+    secure-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "geolocation=(), microphone=(), camera=()"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+
+    compress:
+      compress:
+        excludedContentTypes:
+          - "video/mp4"
+          - "application/zip"
+
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    basic-auth:
+      basicAuth:
+        users:
+          - "admin:$apr1$placeholder$replaceWithRealHash"
+        realm: "Restricted"
+
+    ip-whitelist:
+      ipAllowList:
+        sourceRange:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+
+  routers:
+    whoami:
+      rule: "Host(`whoami.${PRIMARY_DOMAIN}`)"
+      entryPoints:
+        - websecure
+      service: whoami
+      middlewares:
+        - secure-headers@file
+        - compress@file
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    whoami:
+      loadBalancer:
+        servers:
+          - url: "http://whoami:80"

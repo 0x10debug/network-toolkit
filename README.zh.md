@@ -34,6 +34,7 @@
 | [tunnel](templates/tunnel/) | Caddy + frp | 通过 VPS 暴露家里的服务 |
 | [full-stack](templates/full-stack/) | Caddy + frp + DDNS | 全套：代理、SSL、穿透、DDNS |
 | [cloudflare](templates/cloudflare/) | Caddy + Cloudflare 隧道 | 零入站端口——流量全走 Cloudflare |
+| [traefik](templates/traefik/) | Traefik v3.6 + SSL | Docker 原生反代，带仪表盘和中间件库 |
 
 ## 快速开始
 
@@ -110,6 +111,7 @@ Caddy 内置 Let's Encrypt 自动集成——不需要手动管理证书。部�
 供高级用户复用的配置片段：
 
 - [Caddy](components/caddy/) — 基础 Caddyfile 和安全头片段
+- [Traefik](components/traefik/) — 基础静态配置和中间件片段（Traefik v3.6）
 - [frp](components/frp/) — 服务端和客户端配置模板
 - [DDNS](components/ddns/) — ddns-go 多 DNS 提供商配置
 - [Cloudflare](components/cloudflare/) — Cloudflare 隧道 ingress 配置
