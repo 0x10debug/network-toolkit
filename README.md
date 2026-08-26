@@ -35,6 +35,7 @@ Each of these is a separate tool (Caddy, acme.sh, frp, ddns-go). Configuring the
 | [full-stack](templates/full-stack/) | Caddy + frp + DDNS | Everything: proxy, SSL, tunnel, and DDNS |
 | [cloudflare](templates/cloudflare/) | Caddy + Cloudflare Tunnel | Zero inbound ports — all traffic via Cloudflare |
 | [traefik](templates/traefik/) | Traefik v3.6 + SSL | Docker-native reverse proxy with dashboard and middleware library |
+| [socket-proxy](templates/socket-proxy/) | Docker socket-proxy | Filtered Docker API access — never hand out the raw socket |
 
 ## Quick Start
 
