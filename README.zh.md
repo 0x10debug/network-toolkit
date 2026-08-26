@@ -35,6 +35,7 @@
 | [full-stack](templates/full-stack/) | Caddy + frp + DDNS | 全套：代理、SSL、穿透、DDNS |
 | [cloudflare](templates/cloudflare/) | Caddy + Cloudflare 隧道 | 零入站端口——流量全走 Cloudflare |
 | [traefik](templates/traefik/) | Traefik v3.6 + SSL | Docker 原生反代，带仪表盘和中间件库 |
+| [socket-proxy](templates/socket-proxy/) | Docker socket-proxy | 过滤后的 Docker API 访问——绝不直接交出原始 socket |
 
 ## 快速开始
 

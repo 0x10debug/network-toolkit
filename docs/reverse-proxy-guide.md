@@ -164,6 +164,32 @@ Traefik discovers the container automatically — no reload needed.
 matter; Traefik for Docker-heavy setups with many services and a desire for
 label-based auto-discovery plus a dashboard.
 
+## Securing Docker API Access (socket-proxy)
+
+Both Caddy and Traefik can operate without the Docker socket — Caddy uses
+explicit `reverse_proxy` blocks, and even Traefik can use the file provider
+instead of Docker discovery. But when a reverse proxy or monitoring tool *does*
+need Docker visibility (Traefik label discovery, container metrics), never
+bind-mount `/var/run/docker.sock` directly: **the Docker socket is equivalent
+to root on the host.**
+
+Deploy the [`socket-proxy`](../templates/socket-proxy/) template instead. It
+runs `tecnativa/docker-socket-proxy:0.1.5` (pinned) in front of the socket and
+re-exposes a **filtered** Docker API on `:2375` inside an internal Docker
+network — no ports published to the host. Every endpoint defaults to denied;
+you allow only what a consumer needs (`CONTAINERS=1` for listing, `POST=0` to
+block mutation).
+
+```bash
+mb net deploy socket-proxy
+# enable only the endpoints your consumer needs in .env
+```
+
+Then point the consumer at `tcp://socket-proxy:2375` on the `mb-socket-proxy`
+network instead of mounting the raw socket. See the
+[socket-proxy README](../templates/socket-proxy/README.md) for the endpoint
+reference and integration snippets for Traefik and monitoring agents.
+
 ## HTTP/3 (QUIC)
 
 All templates in this toolkit enable HTTP/3 via the `protocols h1 h2 h3` global

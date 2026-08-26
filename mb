@@ -60,6 +60,7 @@ TEMPLATES:
     full-stack    Caddy + frp + DDNS (all-in-one)
     cloudflare    Cloudflare Tunnel (no inbound ports needed)
     traefik       Traefik v3.6 reverse proxy + automatic SSL + dashboard
+    socket-proxy  Docker socket-proxy with allowlist-based API filtering
 
 EXAMPLES:
     mb net list                                # See available templates
@@ -125,7 +126,21 @@ mb_net_deploy() {
 
     mb_step "Deploying network template: $template"
 
-    mb_network_ensure_proxy
+    # The socket-proxy template uses its own internal network instead of the
+    # shared mb-proxy network. Create it as --internal so the filtered Docker
+    # API is never reachable from the host or the public internet.
+    if [ "$template" = "socket-proxy" ]; then
+        local socket_net="${MB_SOCKET_PROXY_NETWORK:-mb-socket-proxy}"
+        if ! docker network inspect "$socket_net" >/dev/null 2>&1; then
+            mb_info "Creating internal socket-proxy network: $socket_net"
+            docker network create --internal "$socket_net" >/dev/null 2>&1
+            mb_detail "Internal network created"
+        else
+            mb_detail "Socket-proxy network exists: $socket_net"
+        fi
+    else
+        mb_network_ensure_proxy
+    fi
 
     mkdir -p "$deploy_dir"
     cp "${template_dir}/compose.yml" "${deploy_dir}/compose.yml"
