@@ -53,7 +53,7 @@ OPTIONS for deploy:
     --env-file FILE    Use existing .env file
     --dry-run          Show what would be done without executing
 
-TEMPLATES:
+TEMPLATES (deployable via 'mb net deploy'):
     website       Single site with Caddy + automatic SSL
     multi-site    Multiple domains with Caddy + automatic SSL
     tunnel        Reverse proxy + frp server for NAT traversal
@@ -61,6 +61,10 @@ TEMPLATES:
     cloudflare    Cloudflare Tunnel (no inbound ports needed)
     traefik       Traefik v3.6 reverse proxy + automatic SSL + dashboard
     socket-proxy  Docker socket-proxy with allowlist-based API filtering
+
+REFERENCE CONFIGS (in templates/, not Compose-based — see their README):
+    edge-firewall  nftables edge firewall + IP blocklist (host kernel)
+    edge-ddns      Cloudflare / DuckDNS dynamic DNS scripts (cron)
 
 EXAMPLES:
     mb net list                                # See available templates

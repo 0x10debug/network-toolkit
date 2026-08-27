@@ -218,6 +218,27 @@ curl -I --http3 https://your-domain.com
 For a dedicated HTTP/3 configuration example, see
 [`templates/caddy/http3/`](../templates/caddy/http3/).
 
+## Edge Network Hardening
+
+A reverse proxy is only as safe as the host firewall in front of it. Two
+reference templates (not Compose-based — they configure the host directly)
+complete the edge:
+
+- **[`edge-firewall`](../templates/edge-firewall/)** — a complete nftables
+  ruleset: default-deny inbound, established/related + loopback allowed,
+  rate-limited SSH (5/min) to defeat brute force, HTTP/HTTPS open for the
+  proxy, bogon source filtering, and a dynamic IP blocklist fed by Spamhaus /
+  Emerging Threats / AbuseIPDB. Use it instead of UFW when you need
+  rate-limiting, blocklists, or a single version-controlled ruleset. If you
+  deploy the `cloudflare` tunnel template, comment out the 80/443 rules — the
+  tunnel is outbound-only.
+
+- **[`edge-ddns`](../templates/edge-ddns/)** — Cloudflare and DuckDNS dynamic
+  DNS scripts (cron, IPv4 + IPv6, idempotent). Use these when your VPS or home
+  server has a dynamic public IP and you run Caddy/Traefik directly (the
+  `cloudflare` tunnel template doesn't need DDNS — its domain resolves to
+  Cloudflare, not your IP).
+
 ## Troubleshooting
 
 See [SSL Management](./ssl-management.md) for certificate issues and [Security Checklist](./security-checklist.md) for exposure auditing.
