@@ -1,0 +1,85 @@
+# zero-trust-access.yml — Cloudflare Zero Trust Access policy reference
+#
+# Cloudflare Access (part of Zero Trust) sits at the edge and authenticates
+# every request to a protected hostname BEFORE it enters the tunnel. This file
+# is a reference for the policy shapes you create in the Cloudflare dashboard
+# (Zero Trust → Access → Applications → Add an application) or via the
+# Cloudflare API / Terraform `cloudflare_access_policy` resource.
+#
+# These are NOT consumed directly by cloudflared — they live in Cloudflare's
+# control plane. The YAML below mirrors the API/ Terraform schema so you can
+# version-control your Access policies.
+#
+# Docs:
+#   https://developers.cloudflare.com/cloudflare-one/policies/access/
+#   https://developers.cloudflare.com/api/operations/access-policies
+
+# ── Application definition ──────────────────────────────────────────────────
+# Each application maps a public hostname to a set of policies. The first
+# matching policy (ALLOW or BROWSE) grants access; otherwise the request is
+# blocked with a login challenge.
+
+applications:
+  - name: "Admin Panel"
+    domain: admin.{$PRIMARY_DOMAIN}
+    session_duration: 24h
+    # Block by default, then allow via the policies below.
+    policies:
+      # 1. Email-based allow list — only listed addresses can log in.
+      - name: "Admins (email)"
+        decision: allow
+        includes:
+          - emails:
+              - "you@example.com"
+              - "ops@example.com"
+      # 2. IP allow list — bypass the login challenge for trusted office IPs.
+      #    Useful for CI/CD or on-prem automation that can't do SSO.
+      - name: "Trusted IPs"
+        decision: bypass
+        includes:
+          - ips:
+              - "203.0.113.10/32"   # office NAT
+              - "198.51.100.0/24"   # VPN range
+
+  - name: "Grafana"
+    domain: grafana.{$PRIMARY_DOMAIN}
+    session_duration: 12h
+    policies:
+      # SSO via GitHub — anyone in the "platform" team of the org can view.
+      - name: "GitHub: platform team"
+        decision: allow
+        includes:
+          - github:
+              organizations:
+                - "your-org"
+              teams:
+                - "platform"
+      # SSO via Google Workspace — restrict to your domain.
+      - name: "Google Workspace"
+        decision: allow
+        includes:
+          - gsuite:
+              emails:
+                - "@your-domain.com"
+
+# ── Identity providers (configured once per Zero Trust account) ─────────────
+# These are referenced by the SSO policies above. Set them up under
+# Zero Trust → Settings → Authentication → Login methods.
+
+identity_providers:
+  - type: github
+    name: "GitHub"
+    # Client ID / secret are entered in the dashboard; not stored here.
+  - type: google-apps
+    name: "Google Workspace"
+    # Google Workspace domain restriction is enforced via the gsuite rule above.
+
+# ── Multi-policy combination rules ──────────────────────────────────────────
+# Within one application, policies are evaluated in order:
+#   - The FIRST matching policy's decision wins (allow / bypass / block).
+#   - `bypass` skips the login challenge entirely (use for trusted IPs).
+#   - `allow` requires a successful login from an approved identity.
+#   - `block` denies even if a later policy would allow.
+# Combine email + IP + SSO to layer defense: e.g. require SSO AND restrict to
+# a corporate IP range by using two `allow` policies with `requires` instead
+# of `includes` (all conditions must match).

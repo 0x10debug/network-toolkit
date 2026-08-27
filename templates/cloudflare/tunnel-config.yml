@@ -1,0 +1,73 @@
+# tunnel-config.yml — Cloudflare Tunnel complete ingress configuration
+#
+# A full-featured cloudflared config showing multi-hostname routing,
+# originRequest tuning, warp-routing, and Access (Zero Trust) policies.
+#
+# Copy to cloudflared.yml and replace {$TUNNEL_ID}, {$PRIMARY_DOMAIN}, and
+# the per-hostname service targets. The final catch-all service entry is
+# required by cloudflared.
+#
+# Docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/configure-tunnels/cloudflared-parameters/
+
+tunnel: {$TUNNEL_ID}
+credentials-file: /etc/cloudflared/{$TUNNEL_ID}.json
+
+# originRequest applies to every ingress rule unless overridden per-rule.
+originRequest:
+  # Total time cloudflared waits for the origin to respond.
+  connectTimeout: 30s
+  # TLS timeout for the origin connection.
+  tlsTimeout: 10s
+  # Keep TCP connections alive between cloudflared and the origin.
+  keepAliveConnections: 10
+  keepAliveTimeout: 90s
+  # Use HTTP/2 to the origin when the origin supports it (h2c for plain HTTP).
+  http2Origin: true
+  # Disable TLS verification ONLY for plaintext internal origins (http://).
+  # For https:// origins with self-signed certs, prefer a CA cert instead.
+  noTLSVerify: false
+  # How long an idle origin connection stays in the pool.
+  tcpKeepAlive: 30s
+
+# warp-routing lets private-network resources behind a WARP client be reached
+# through the tunnel. Enable only if you use Cloudflare WARP for private
+# network access; leave disabled for public-origin ingress only.
+warp-routing:
+  enabled: false
+
+# ingress — ordered list of hostname → service mappings.
+# The FIRST matching rule wins, so list specific hosts before catch-all.
+ingress:
+  # Public website → internal Caddy (plain HTTP, mb-proxy network).
+  - hostname: {$PRIMARY_DOMAIN}
+    service: http://caddy:80
+    originRequest:
+      # Tighter timeout for the public-facing site.
+      connectTimeout: 10s
+
+  # API subdomain → backend app container (skip Caddy for lower latency).
+  - hostname: api.{$PRIMARY_DOMAIN}
+    service: http://api:8080
+    originRequest:
+      http2Origin: true
+      connectTimeout: 15s
+
+  # Admin panel → protected by Zero Trust Access (see zero-trust-access.yml).
+  # The Access policy is enforced at Cloudflare's edge BEFORE traffic reaches
+  # this origin, so only authenticated users ever hit the backend.
+  - hostname: admin.{$PRIMARY_DOMAIN}
+    service: http://admin:3000
+    originRequest:
+      connectTimeout: 10s
+
+  # Grafana → internal monitoring, also behind Access.
+  - hostname: grafana.{$PRIMARY_DOMAIN}
+    service: http://grafana:3000
+
+  # SSH over Cloudflare Tunnel (requires `cloudflared access ssh` on the
+  # client). The service is ssh:// on the origin's localhost.
+  - hostname: ssh.{$PRIMARY_DOMAIN}
+    service: ssh://localhost:22
+
+  # Catch-all — required by cloudflared. Returns 404 for unknown hosts.
+  - service: http_status:404
