@@ -65,7 +65,19 @@ mb_check_docker() {
 
 mb_template_exists() {
     local template="$1"
-    [ -f "${MB_TEMPLATES_DIR}/${template}/compose.yml" ]
+    [ -d "${MB_TEMPLATES_DIR}/${template}" ]
+}
+
+# Return the primary compose file for a template. Most templates use
+# compose.yml; sso and load-balancing have multiple provider-specific
+# compose files and no compose.yml — the caller must prompt the user to
+# choose. Returns the path on stdout, or empty if none found.
+mb_template_compose_file() {
+    local template="$1"
+    local dir="${MB_TEMPLATES_DIR}/${template}"
+    if [ -f "${dir}/compose.yml" ]; then
+        echo "${dir}/compose.yml"
+    fi
 }
 
 mb_list_templates() {
@@ -73,7 +85,6 @@ mb_list_templates() {
         [ -d "$dir" ] || continue
         local name
         name=$(basename "$dir")
-        [ -f "${dir}compose.yml" ] || continue
         local desc=""
         if [ -f "${dir}README.md" ]; then
             desc=$(head -1 "${dir}README.md" | sed 's/^# *//')

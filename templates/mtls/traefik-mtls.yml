@@ -1,0 +1,54 @@
+# traefik-mtls.yml — Traefik v3.6 mTLS (mutual TLS) configuration example
+#
+# Drop this into your Traefik dynamic config directory
+# (templates/traefik/dynamic/) and Traefik hot-reloads it. Two parts:
+#   1. A TLS options block that requires client certificates (clientAuth).
+#   2. A router that references the mTLS TLS option.
+#
+# The CA certificate (ca.crt) must be mounted into Traefik and referenced
+# via the tls.options.ca file path. Generate certs with generate-certs.sh:
+#   ./generate-certs.sh --domain api.example.com --outdir ./certs
+
+# ── TLS options: require client certificate ──────────────────────────────────
+tls:
+  options:
+    mtls:
+      clientAuth:
+        # CA certificates that sign accepted client certs. Files must be
+        # mounted into the Traefik container (e.g. ./certs/ca.crt:/certs/ca.crt:ro)
+        caFiles:
+          - "/certs/ca.crt"
+        # clientAuth mode:
+        #   requireAndVerifyClientCert = mTLS enforced (reject without valid cert)
+        #   verifyClientCert           = verify if presented, allow missing
+        #   requestClientCert          = request but don't require
+        clientAuthType: "RequireAndVerifyClientCert"
+
+# ── Example router using mTLS ────────────────────────────────────────────────
+# Uncomment and adapt. The tls.options: mtls reference enforces client cert
+# verification for this router only — other routers are unaffected.
+#
+# http:
+#   routers:
+#     mtls-api:
+#       rule: "Host(`api.${PRIMARY_DOMAIN}`)"
+#       entryPoints:
+#         - websecure
+#       service: api-backend
+#       tls:
+#         certResolver: letsencrypt
+#         options: mtls        # ← enforce mTLS for this router
+#
+#   services:
+#     api-backend:
+#       loadBalancer:
+#         servers:
+#           - url: "http://api:8080"
+
+# ── Notes ────────────────────────────────────────────────────────────────────
+# - For mTLS with Let's Encrypt certs, the server cert comes from ACME while
+#   the client cert is verified against your custom CA. This works fine —
+#   they are independent certificate chains.
+# - To apply mTLS globally (all routers), set clientAuth in the
+#   tls.options.default block instead of a named option.
+# - If you have multiple CAs (e.g. different client groups), list all caFiles.

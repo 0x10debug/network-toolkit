@@ -1,0 +1,101 @@
+# traefik-lb.yml — Traefik v3.6 load balancing with WRR (weighted round robin)
+#
+# Drop this into your Traefik dynamic config directory
+# (templates/traefik/dynamic/) and Traefik hot-reloads it. Demonstrates:
+#   - Multiple backend services in a load balancer pool
+#   - WRR (weighted round robin) for unequal traffic distribution
+#   - Health check (active) on the service
+#   - Failover via a backup server (zero weight until primaries are down)
+#
+# Traefik's load balancer is built-in — no separate container needed. This
+# file shows the dynamic config; if you use Docker labels on your app
+# containers, Traefik discovers them automatically.
+
+http:
+  services:
+
+    # ── WRR service: weighted round robin ───────────────────────────────────
+    # Distributes traffic across backends with explicit weights. A weight of
+    # 0 means the server is a backup — only used when all weighted servers
+    # are down (failover).
+    api-wrr:
+      weighted:
+        services:
+          - name: api-primary-1
+            weight: 3
+          - name: api-primary-2
+            weight: 2
+          - name: api-primary-3
+            weight: 1
+          - name: api-backup
+            weight: 0       # backup — only when all primaries are down
+
+    # ── Primary backend 1 ───────────────────────────────────────────────────
+    api-primary-1:
+      loadBalancer:
+        passHostHeader: true
+        healthCheck:
+          path: /health
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: "http://api1:8080"
+
+    # ── Primary backend 2 ───────────────────────────────────────────────────
+    api-primary-2:
+      loadBalancer:
+        passHostHeader: true
+        healthCheck:
+          path: /health
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: "http://api2:8080"
+
+    # ── Primary backend 3 ───────────────────────────────────────────────────
+    api-primary-3:
+      loadBalancer:
+        passHostHeader: true
+        healthCheck:
+          path: /health
+          interval: 10s
+          timeout: 3s
+        servers:
+          - url: "http://api3:8080"
+
+    # ── Backup backend (failover) ───────────────────────────────────────────
+    api-backup:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://api-backup:8080"
+
+  # ── Example router using the WRR service ───────────────────────────────────
+  # Uncomment and adapt. Traffic to api.example.com is distributed across
+  # the WRR pool (3:2:1 for primary-1:primary-2:primary-3, with backup as
+  # failover).
+  #
+  # routers:
+  #   api-lb:
+  #     rule: "Host(`api.${PRIMARY_DOMAIN}`)"
+  #     entryPoints:
+  #       - websecure
+  #     service: api-wrr
+  #     tls:
+  #       certResolver: letsencrypt
+
+# ── Docker label equivalent ──────────────────────────────────────────────────
+# If your backends are Docker containers, you can achieve the same with
+# labels on each container (Traefik auto-discovers them):
+#
+#   # api1 (weight 3)
+#   labels:
+#     - "traefik.enable=true"
+#     - "traefik.http.routers.api.rule=Host(`api.example.com`)"
+#     - "traefik.http.services.api.loadbalancer.server.port=8080"
+#     - "traefik.http.services.api.loadbalancer.healthcheck.path=/health"
+#     - "traefik.http.services.api.loadbalancer.healthcheck.interval=10s"
+#     - "traefik.http.services.api-wrr.weighted.services.api1=3"
+#
+# For WRR via labels, use the traefik.http.services.<name>.weighted.* labels.
+# The dynamic config (this file) is clearer for explicit server definitions.

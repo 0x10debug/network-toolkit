@@ -1,0 +1,76 @@
+# traefik-middleware.yml — Traefik v3.6 forwardAuth integration for SSO
+#
+# Drop these blocks into your Traefik dynamic config directory
+# (templates/traefik/dynamic/) and Traefik hot-reloads them. Two middlewares
+# are defined — one for OAuth2 Proxy, one for Authelia — so you can choose
+# your SSO provider without editing the router labels.
+#
+# Usage:
+#   - OAuth2 Proxy:  middlewares: sso-oauth2-proxy@file
+#   - Authelia:      middlewares: sso-authelia@file
+#
+# Both middlewares send a sub-request to the SSO provider. If the provider
+# returns 2xx, the original request proceeds (with auth headers injected);
+# if it returns 401/403, the user is redirected to the login page.
+
+http:
+  middlewares:
+
+    # ── OAuth2 Proxy forwardAuth ────────────────────────────────────────────
+    # Sends every request to oauth2-proxy's /oauth2/auth endpoint. On 401,
+    # the error middleware redirects to /oauth2/start so the user can log in.
+    # Requires the oauth2-proxy container to be on the mb-proxy network.
+    sso-oauth2-proxy:
+      forwardAuth:
+        address: "http://oauth2-proxy:4180/oauth2/auth"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "X-Auth-Request-Access-Token"
+          - "X-Auth-Request-Email"
+          - "X-Auth-Request-User"
+          - "X-Auth-Request-Groups"
+          - "Authorization"
+
+    # OAuth2 Proxy — redirect to login on auth failure
+    sso-oauth2-proxy-login:
+      errors:
+        status:
+          - "401"
+        service: "oauth2-proxy-sso@docker"
+        query: "/oauth2/start?rd={url}"
+
+    # ── Authelia forwardAuth ────────────────────────────────────────────────
+    # Sends every request to Authelia's /api/verify endpoint. On 401,
+    # Authelia itself handles the redirect to its login portal.
+    # Requires the authelia container to be on the mb-proxy network.
+    sso-authelia:
+      forwardAuth:
+        address: "http://authelia:9091/api/verify?rd=https://auth.${PRIMARY_DOMAIN}/"
+        trustForwardHeader: true
+        authResponseHeaders:
+          - "Remote-User"
+          - "Remote-Groups"
+          - "Remote-Name"
+          - "Remote-Email"
+
+  # ── Example router protecting a service with OAuth2 Proxy ──────────────────
+  # Uncomment and adapt to protect any backend. The protected service does
+  # not need to know about SSO — Traefik strips unauthenticated requests
+  # before they reach it.
+  #
+  # routers:
+  #   my-protected-app:
+  #     rule: "Host(`app.${PRIMARY_DOMAIN}`)"
+  #     entryPoints:
+  #       - websecure
+  #     service: my-app
+  #     middlewares:
+  #       - sso-oauth2-proxy@file
+  #     tls:
+  #       certResolver: letsencrypt
+  #
+  # services:
+  #   my-app:
+  #     loadBalancer:
+  #       servers:
+  #         - url: "http://my-app:8080"

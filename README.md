@@ -36,6 +36,9 @@ Each of these is a separate tool (Caddy, acme.sh, frp, ddns-go). Configuring the
 | [cloudflare](templates/cloudflare/) | Caddy + Cloudflare Tunnel | Zero inbound ports — all traffic via Cloudflare |
 | [traefik](templates/traefik/) | Traefik v3.6 + SSL | Docker-native reverse proxy with dashboard and middleware library |
 | [socket-proxy](templates/socket-proxy/) | Docker socket-proxy | Filtered Docker API access — never hand out the raw socket |
+| [sso](templates/sso/) | OAuth2 Proxy + Authelia | SSO/OIDC authentication — protect any service with Google/GitHub/self-hosted login |
+| [mtls](templates/mtls/) | mTLS cert scripts + configs | Mutual TLS authentication — CA + server + client cert generation and reverse proxy configs |
+| [load-balancing](templates/load-balancing/) | HAProxy + Nginx + Traefik | Load balancing across multiple backends — HAProxy, Nginx upstream, or Traefik WRR |
 | [edge-firewall](templates/edge-firewall/) | nftables + blocklist | Edge firewall ruleset (default-deny, SSH rate limit, bogon/IP blocklist) |
 | [edge-ddns](templates/edge-ddns/) | DDNS scripts | Cloudflare / DuckDNS dynamic DNS scripts (cron, IPv4+IPv6) |
 

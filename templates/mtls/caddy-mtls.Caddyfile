@@ -1,0 +1,48 @@
+# caddy-mtls.Caddyfile — Caddy v2.9 mTLS (mutual TLS) configuration example
+#
+# Caddy supports mTLS via the `client_auth` directive inside a site block.
+# `trusted_ca_cert_file` points to the CA certificate that signed your client
+# certs. Caddy will reject any connection that does not present a valid
+# client certificate signed by that CA.
+#
+# Generate certs with generate-certs.sh:
+#   ./generate-certs.sh --domain api.example.com --outdir ./certs
+#
+# Mount the certs into the Caddy container and reference them below.
+
+# ── mTLS-enforced site ───────────────────────────────────────────────────────
+api.example.com {
+    # mTLS: require a client certificate signed by the trusted CA.
+    # trusted_ca_cert_file = enforce (client must present a valid cert)
+    # trusted_ca_cert_file + verify_if_given = optional mTLS
+    tls /certs/server.crt /certs/server.key {
+        client_auth {
+            mode require_and_verify
+            trusted_ca_cert_file /certs/ca.crt
+        }
+    }
+
+    reverse_proxy backend:8080
+}
+
+# ── Optional mTLS with automatic HTTPS ───────────────────────────────────────
+# Caddy can combine automatic Let's Encrypt certs (server side) with mTLS
+# (client side). The server cert is managed by Caddy; only the client CA
+# needs to be provided:
+#
+# api.example.com {
+#     tls {
+#         client_auth {
+#             mode require_and_verify
+#             trusted_ca_cert_file /certs/ca.crt
+#         }
+#     }
+#     reverse_proxy backend:8080
+# }
+
+# ── Notes ────────────────────────────────────────────────────────────────────
+# - `mode require_and_verify` = reject connections without a valid client cert.
+#   Use `mode verify_if_given` to allow both mTLS and non-mTLS clients.
+# - For multiple CAs, add multiple `trusted_ca_cert_file` lines.
+# - Caddy passes the authenticated client's cert details to the backend via
+#   standard TLS headers. Your app can read them if needed.

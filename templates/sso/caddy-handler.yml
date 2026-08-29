@@ -1,0 +1,52 @@
+# caddy-handler.yml — Caddy v2.9 forward_auth integration for SSO
+#
+# This is a Caddyfile snippet (not a docker-compose file). Copy the relevant
+# block into your Caddyfile to protect any site behind SSO. Two variants are
+# provided — OAuth2 Proxy and Authelia — pick the one matching your provider.
+#
+# Caddy's `forward_auth` directive sends a sub-request to the SSO provider.
+# If the provider returns 2xx, Caddy copies the auth headers and proxies the
+# original request to the backend. If it returns 401, the provider's own
+# redirect sends the user to the login page.
+
+# ── Variant 1: OAuth2 Proxy ──────────────────────────────────────────────────
+# Requires the oauth2-proxy container on the mb-proxy network.
+# The auth.* domain hosts the OAuth2 callback endpoints; app.* is protected.
+
+# auth.{$PRIMARY_DOMAIN} {
+#     reverse_proxy oauth2-proxy:4180
+# }
+#
+# app.{$PRIMARY_DOMAIN} {
+#     forward_auth oauth2-proxy:4180 {
+#         uri /oauth2/auth
+#         copy_headers X-Auth-Request-Email X-Auth-Request-User X-Auth-Request-Groups X-Auth-Request-Access-Token Authorization
+#     }
+#     reverse_proxy {$APP_HOST}:{$APP_PORT}
+# }
+
+# ── Variant 2: Authelia ──────────────────────────────────────────────────────
+# Requires the authelia container on the mb-proxy network.
+# The auth.* domain hosts Authelia's login portal; app.* is protected.
+
+# auth.{$PRIMARY_DOMAIN} {
+#     reverse_proxy authelia:9091
+# }
+#
+# app.{$PRIMARY_DOMAIN} {
+#     forward_auth authelia:9091 {
+#         uri /api/verify?rd=https://auth.{$PRIMARY_DOMAIN}/
+#         copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#     }
+#     reverse_proxy {$APP_HOST}:{$APP_PORT}
+# }
+
+# ── Notes ────────────────────────────────────────────────────────────────────
+# - `copy_headers` injects the SSO provider's auth headers into the request
+#   sent to your backend. Your app can read them to identify the user without
+#   implementing SSO itself.
+# - The auth.* subdomain must be routed to the SSO provider so the OAuth2
+#   callback / Authelia login portal is reachable. Add it as a separate
+#   Caddyfile site block (shown above) or via `mb net proxy add`.
+# - For OAuth2 Proxy, the redirect URL in .env must point to
+#   https://auth.${PRIMARY_DOMAIN}/oauth2/callback — matching the auth.* block.

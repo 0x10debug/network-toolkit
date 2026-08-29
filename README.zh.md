@@ -36,6 +36,9 @@
 | [cloudflare](templates/cloudflare/) | Caddy + Cloudflare 隧道 | 零入站端口——流量全走 Cloudflare |
 | [traefik](templates/traefik/) | Traefik v3.6 + SSL | Docker 原生反代，带仪表盘和中间件库 |
 | [socket-proxy](templates/socket-proxy/) | Docker socket-proxy | 过滤后的 Docker API 访问——绝不直接交出原始 socket |
+| [sso](templates/sso/) | OAuth2 Proxy + Authelia | SSO/OIDC 认证——用 Google/GitHub/自建登录保护任意服务 |
+| [mtls](templates/mtls/) | mTLS 证书脚本 + 配置 | mTLS 双向认证——CA + 服务端 + 客户端证书生成及反代配置 |
+| [load-balancing](templates/load-balancing/) | HAProxy + Nginx + Traefik | 负载均衡——HAProxy、Nginx upstream 或 Traefik WRR |
 | [edge-firewall](templates/edge-firewall/) | nftables + 黑名单 | 边缘防火墙规则集（默认拒绝、SSH 限速、bogon/IP 黑名单） |
 | [edge-ddns](templates/edge-ddns/) | DDNS 脚本 | Cloudflare / DuckDNS 动态域名脚本（cron，IPv4+IPv6） |
 

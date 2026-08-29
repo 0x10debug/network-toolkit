@@ -1,0 +1,58 @@
+# authelia.yml — Authelia v4.38 SSO / 2FA identity provider (docker-compose)
+#
+# Pinned to authelia/authelia:4.38.10 (never :latest). Port 9091 is bound to
+# 127.0.0.1 so Authelia is never reachable directly from the public internet
+# — traffic must come through the reverse proxy (Caddy/Traefik) via
+# forward_auth. Authelia ships its own login portal, session management, and
+# per-access-control policy engine, making it a full self-hosted alternative
+# to OAuth2 Proxy when you need local users, 2FA, and granular rules.
+#
+# Storage backend: SQLite (file) by default. For multi-instance or higher
+# throughput, switch to MySQL by setting AUTHELIA_STORAGE_MYSQL (see .env).
+#
+# Usage:
+#   1. cp .env.example .env  && edit .env (domain, secrets, storage)
+#   2. docker network create mb-proxy   (once per host, if not present)
+#   3. docker compose -f authelia.yml up -d
+#   4. Wire your reverse proxy forward_auth to http://authelia:9091/api/verify
+#      — see traefik-middleware.yml / caddy-handler.yml for snippets.
+
+services:
+  authelia:
+    image: authelia/authelia:4.38.10
+    container_name: authelia
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9091:9091"   # never expose publicly — reverse proxy only
+    environment:
+      AUTHELIA_STORAGE_ENCRYPTION_KEY: ${AUTHELIA_STORAGE_ENCRYPTION_KEY}
+      AUTHELIA_STORAGE_LOCAL_PATH: /config/db.sqlite3
+      AUTHELIA_JWT_SECRET: ${AUTHELIA_JWT_SECRET}
+      AUTHELIA_SESSION_SECRET: ${AUTHELIA_SESSION_SECRET}
+      AUTHELIA_DEFAULT_REDIRECTION_URL: https://${PRIMARY_DOMAIN}
+      AUTHELIA_LOG_LEVEL: ${AUTHELIA_LOG_LEVEL:-info}
+      # MySQL backend (optional — uncomment and set in .env to use instead of SQLite)
+      # AUTHELIA_STORAGE_MYSQL_HOST: ${AUTHELIA_STORAGE_MYSQL_HOST:-}
+      # AUTHELIA_STORAGE_MYSQL_DATABASE: ${AUTHELIA_STORAGE_MYSQL_DATABASE:-authelia}
+      # AUTHELIA_STORAGE_MYSQL_USERNAME: ${AUTHELIA_STORAGE_MYSQL_USERNAME:-authelia}
+      # AUTHELIA_STORAGE_MYSQL_PASSWORD: ${AUTHELIA_STORAGE_MYSQL_PASSWORD:-}
+    volumes:
+      - ./configuration.yml:/config/configuration.yml:ro
+      - ./users_database.yml:/config/users_database.yml:ro
+      - authelia-data:/config
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost:9091/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - mb-proxy
+
+volumes:
+  authelia-data:
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

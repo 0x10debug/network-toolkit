@@ -1,0 +1,38 @@
+# haproxy.yml — HAProxy 3.1.0 load balancer (docker-compose)
+#
+# Pinned to haproxy:3.1.0 (never :latest). Ports 80/443 are bound to 0.0.0.0
+# for public traffic; the stats page on 9999 is bound to 127.0.0.1 so it is
+# only reachable from the host (or via an SSH tunnel). The HAProxy config
+# file (haproxy.cfg) is mounted read-only.
+#
+# Usage:
+#   1. cp .env.example .env  && edit .env (backends, stats password)
+#   2. docker network create mb-proxy   (once per host, if not present)
+#   3. docker compose up -d
+#   4. Access stats at http://127.0.0.1:9999 (or SSH tunnel: -L 9999:127.0.0.1:9999)
+
+services:
+  haproxy:
+    image: haproxy:3.1.0
+    container_name: haproxy
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"       # HTTP frontend
+      - "0.0.0.0:443:443"     # HTTPS frontend (SSL termination / SNI passthrough)
+      - "127.0.0.1:9999:9999" # stats — localhost only
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./certs:/usr/local/etc/haproxy/certs:ro
+    healthcheck:
+      test: ["CMD", "haproxy", "check", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mb-proxy
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

@@ -1,0 +1,36 @@
+# nginx-upstream.yml — Nginx 1.27.2 load balancer (docker-compose)
+#
+# Pinned to nginx:1.27.2 (never :latest). Port 80 is bound to 0.0.0.0 for
+# public HTTP traffic. The Nginx upstream config (nginx-upstream.conf) is
+# mounted read-only. Use this as a lightweight L7 load balancer when you
+# don't need HAProxy's full feature set.
+#
+# Usage:
+#   1. cp .env.example .env  && edit .env (backends, domain)
+#   2. docker network create mb-proxy   (once per host, if not present)
+#   3. docker compose up -d
+
+services:
+  nginx-lb:
+    image: nginx:1.27.2
+    container_name: nginx-lb
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./nginx-upstream.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mb-proxy
+
+networks:
+  mb-proxy:
+    external: true
+    name: ${MB_PROXY_NETWORK:-mb-proxy}

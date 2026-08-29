@@ -239,6 +239,92 @@ complete the edge:
   `cloudflare` tunnel template doesn't need DDNS — its domain resolves to
   Cloudflare, not your IP).
 
+## Authentication — SSO/OIDC and mTLS
+
+A reverse proxy can centralize authentication so your backend apps don't need
+to implement their own login flows. Two complementary approaches are provided:
+
+### SSO / OIDC (HTTP-layer auth)
+
+The [`sso`](../templates/sso/) template deploys an SSO/OIDC gateway that
+authenticates users once and injects auth headers into every request forwarded
+to your backends. Two providers are included:
+
+- **OAuth2 Proxy** (`v7.7.0`) — delegates auth to Google, GitHub, or any OIDC
+  IdP. Best for "Login with Google/GitHub" flows.
+- **Authelia** (`v4.38.10`) — self-hosted identity provider with local users,
+  2FA (TOTP/WebAuthn), and granular per-route access policies. No external IdP
+  dependency.
+
+Both providers bind to `127.0.0.1` and are reached via the reverse proxy's
+`forward_auth` directive (Traefik) or `forward_auth` block (Caddy). Protecting
+a new service is a one-line config change — add the SSO middleware to the
+router or site block.
+
+```bash
+# Deploy OAuth2 Proxy (choose provider at prompt)
+mb net deploy sso
+
+# Deploy Authelia (choose provider at prompt)
+mb net deploy sso
+
+# Then wire your reverse proxy — see templates/sso/traefik-middleware.yml
+# or templates/sso/caddy-handler.yml for integration snippets
+```
+
+### mTLS (TLS-layer auth)
+
+The [`mtls`](../templates/mtls/) template provides mutual TLS — every client
+must present a cryptographic certificate signed by your CA before the TLS
+handshake completes. No valid cert = no connection. This is ideal for
+API-to-API communication, service meshes, and zero-trust internal networks.
+
+```bash
+# Generate CA + server + client certificates
+cd templates/mtls && ./generate-certs.sh --domain api.example.com --days 825
+
+# Then configure your reverse proxy — see templates/mtls/ for
+# nginx-mtls.conf, traefik-mtls.yml, or caddy-mtls.Caddyfile
+```
+
+| | SSO/OIDC | mTLS |
+|---|---|---|
+| Layer | HTTP (forward_auth) | TLS handshake |
+| Best for | Human users, web apps | Machine-to-machine, APIs |
+| Failure | HTTP 401 → login redirect | TLS error (no HTTP response) |
+| Template | [`templates/sso/`](../templates/sso/) | [`templates/mtls/`](../templates/mtls/) |
+
+## Load Balancing
+
+When a single backend instance isn't enough, the [`load-balancing`](../templates/load-balancing/)
+template distributes traffic across multiple instances for high availability
+and horizontal scaling. Three solutions are included:
+
+- **HAProxy** (`3.1.0`) — dedicated L4/L7 load balancer with the highest
+  throughput. Supports TCP + HTTP, SSL termination, and SNI passthrough.
+  Stats page on `127.0.0.1:9999`.
+- **Nginx** (`1.27.2`) — lightweight L7 load balancer using `upstream` blocks.
+  Supports round_robin, ip_hash (session persistence), and least_conn.
+- **Traefik** — Docker-native load balancing via WRR (weighted round robin)
+  with automatic service discovery. No separate container needed — drop the
+  dynamic config into your existing Traefik deployment.
+
+```bash
+# Deploy HAProxy or Nginx load balancer (choose at prompt)
+mb net deploy load-balancing
+
+# For Traefik, copy the WRR config into your dynamic config directory:
+cp templates/load-balancing/traefik-lb.yml /data/traefik/dynamic/
+```
+
+| | HAProxy | Nginx | Traefik |
+|---|---|---|---|
+| Layer | L4 + L7 | L7 | L7 |
+| Service discovery | Manual | Manual | Docker labels (auto) |
+| SSL termination | Yes | Yes | Yes (ACME) |
+| SNI passthrough | Yes | Yes (stream) | No |
+| Best for | High-throughput, TCP | Simple HTTP LB | Docker-native |
+
 ## Troubleshooting
 
 See [SSL Management](./ssl-management.md) for certificate issues and [Security Checklist](./security-checklist.md) for exposure auditing.

@@ -54,17 +54,20 @@ OPTIONS for deploy:
     --dry-run          Show what would be done without executing
 
 TEMPLATES (deployable via 'mb net deploy'):
-    website       Single site with Caddy + automatic SSL
-    multi-site    Multiple domains with Caddy + automatic SSL
-    tunnel        Reverse proxy + frp server for NAT traversal
-    full-stack    Caddy + frp + DDNS (all-in-one)
-    cloudflare    Cloudflare Tunnel (no inbound ports needed)
-    traefik       Traefik v3.6 reverse proxy + automatic SSL + dashboard
-    socket-proxy  Docker socket-proxy with allowlist-based API filtering
+    website          Single site with Caddy + automatic SSL
+    multi-site       Multiple domains with Caddy + automatic SSL
+    tunnel           Reverse proxy + frp server for NAT traversal
+    full-stack       Caddy + frp + DDNS (all-in-one)
+    cloudflare       Cloudflare Tunnel (no inbound ports needed)
+    traefik          Traefik v3.6 reverse proxy + automatic SSL + dashboard
+    socket-proxy     Docker socket-proxy with allowlist-based API filtering
+    sso              SSO/OIDC auth (OAuth2 Proxy + Authelia) — choose provider
+    load-balancing   HAProxy / Nginx / Traefik LB — choose backend
 
 REFERENCE CONFIGS (in templates/, not Compose-based — see their README):
-    edge-firewall  nftables edge firewall + IP blocklist (host kernel)
-    edge-ddns      Cloudflare / DuckDNS dynamic DNS scripts (cron)
+    edge-firewall    nftables edge firewall + IP blocklist (host kernel)
+    edge-ddns        Cloudflare / DuckDNS dynamic DNS scripts (cron)
+    mtls             mTLS cert generation + reverse proxy configs (scripts)
 
 EXAMPLES:
     mb net list                                # See available templates
@@ -83,22 +86,66 @@ mb_net_list() {
     mb_step "Available network templates"
     echo ""
 
-    local found=0
+    local deployable=0
+    local reference=0
+
+    # Deployable templates (have a compose file — compose.yml or a .yml with "services:")
     for dir in "$MB_TEMPLATES_DIR"/*/; do
         [ -d "$dir" ] || continue
         local name desc
         name=$(basename "$dir")
-        [ -f "${dir}compose.yml" ] || continue
-        desc=$(head -1 "${dir}README.md" 2>/dev/null | sed 's/^# *//' || echo "(no description)")
-        printf "  %-15s %s\n" "$name" "$desc"
-        found=$((found + 1))
+        local has_compose=false
+        if [ -f "${dir}compose.yml" ]; then
+            has_compose=true
+        else
+            while IFS= read -r f; do
+                if grep -q '^services:' "$f" 2>/dev/null; then
+                    has_compose=true
+                    break
+                fi
+            done < <(find "${dir}" -maxdepth 1 -name '*.yml' -type f 2>/dev/null)
+        fi
+        if [ "$has_compose" = true ]; then
+            desc=$(head -1 "${dir}README.md" 2>/dev/null | sed 's/^# *//' || echo "(no description)")
+            printf "  %-18s %s\n" "$name" "$desc"
+            deployable=$((deployable + 1))
+        fi
     done
 
-    if [ "$found" -eq 0 ]; then
-        mb_warn "No templates found in: $MB_TEMPLATES_DIR"
-    else
+    if [ "$deployable" -gt 0 ]; then
         echo ""
         mb_info "Deploy with: mb net deploy <template-name>"
+    fi
+
+    # Reference configs (no compose file — scripts/configs, see their README)
+    local ref_header=false
+    for dir in "$MB_TEMPLATES_DIR"/*/; do
+        [ -d "$dir" ] || continue
+        local name
+        name=$(basename "$dir")
+        # Skip if it has compose.yml or any .yml with "services:" (already listed)
+        if [ -f "${dir}compose.yml" ]; then continue; fi
+        local skip_ref=false
+        while IFS= read -r f; do
+            if grep -q '^services:' "$f" 2>/dev/null; then
+                skip_ref=true
+                break
+            fi
+        done < <(find "${dir}" -maxdepth 1 -name '*.yml' -type f 2>/dev/null)
+        [ "$skip_ref" = true ] && continue
+        if [ "$ref_header" = false ]; then
+            echo ""
+            mb_info "Reference configs (not Compose-based — see their README):"
+            ref_header=true
+        fi
+        local desc
+        desc=$(head -1 "${dir}README.md" 2>/dev/null | sed 's/^# *//' || echo "(no description)")
+        printf "  %-18s %s\n" "$name" "$desc"
+        reference=$((reference + 1))
+    done
+
+    if [ "$deployable" -eq 0 ] && [ "$reference" -eq 0 ]; then
+        mb_warn "No templates found in: $MB_TEMPLATES_DIR"
     fi
 }
 
@@ -123,10 +170,36 @@ mb_net_deploy() {
         mb_die "Template not found: $template"
     fi
 
-    mb_check_docker
-
     local template_dir="${MB_TEMPLATES_DIR}/${template}"
     local deploy_dir="${MB_DEPLOY_DIR}/${template}"
+
+    # ── Reference configs (no compose file) ────────────────────────────────
+    # mtls, edge-firewall, edge-ddns are not Compose-based. Show their README
+    # path and exit — the user follows the README instructions directly.
+    # A template is a reference config if it has no compose.yml AND no .yml
+    # file containing "services:" (the docker-compose marker).
+    local compose_src
+    compose_src=$(mb_template_compose_file "$template")
+    local has_compose_yml=false
+    if [ -z "$compose_src" ]; then
+        while IFS= read -r f; do
+            if grep -q '^services:' "$f" 2>/dev/null; then
+                has_compose_yml=true
+                break
+            fi
+        done < <(find "${template_dir}" -maxdepth 1 -name '*.yml' -type f 2>/dev/null)
+    fi
+    if [ -z "$compose_src" ] && [ "$has_compose_yml" = false ]; then
+        mb_step "Reference config: $template"
+        mb_info "This template is not Compose-based — it provides scripts/config files."
+        mb_detail "See: ${template_dir}/README.md"
+        if [ -f "${template_dir}/generate-certs.sh" ]; then
+            mb_detail "Quick start: cd ${template_dir} && ./generate-certs.sh --help"
+        fi
+        return 0
+    fi
+
+    mb_check_docker
 
     mb_step "Deploying network template: $template"
 
@@ -147,7 +220,51 @@ mb_net_deploy() {
     fi
 
     mkdir -p "$deploy_dir"
-    cp "${template_dir}/compose.yml" "${deploy_dir}/compose.yml"
+
+    # ── Determine the compose file to deploy ───────────────────────────────
+    # Most templates have a single compose.yml. The sso and load-balancing
+    # templates have multiple provider-specific compose files — prompt the
+    # user to choose one and copy it as compose.yml in the deploy dir.
+    local compose_file=""
+    if [ -n "$compose_src" ]; then
+        compose_file="$compose_src"
+    else
+        # Multi-compose templates: list .yml files that are docker-compose
+        # files (contain "services:") and let user pick
+        local yml_files=()
+        while IFS= read -r f; do
+            if grep -q '^services:' "$f" 2>/dev/null; then
+                yml_files+=("$f")
+            fi
+        done < <(find "${template_dir}" -maxdepth 1 -name '*.yml' -type f | sort)
+
+        if [ "${#yml_files[@]}" -eq 0 ]; then
+            mb_die "No compose file found in template: $template"
+        elif [ "${#yml_files[@]}" -eq 1 ]; then
+            compose_file="${yml_files[0]}"
+        else
+            mb_info "Multiple configurations available for '$template':"
+            local i=1
+            for f in "${yml_files[@]}"; do
+                local fname
+                fname=$(basename "$f")
+                local firstline
+                firstline=$(head -1 "$f" | sed 's/^# *//')
+                printf "  %d) %-25s %s\n" "$i" "$fname" "$firstline"
+                i=$((i + 1))
+            done
+            echo ""
+            local choice
+            choice=$(mb_ask_value "Select configuration (1-${#yml_files[@]})" "1")
+            if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#yml_files[@]}" ]; then
+                mb_die "Invalid choice: $choice"
+            fi
+            compose_file="${yml_files[$((choice - 1))]}"
+            mb_detail "Selected: $(basename "$compose_file")"
+        fi
+    fi
+
+    cp "$compose_file" "${deploy_dir}/compose.yml"
 
     # Copy Caddyfile if exists
     if [ -f "${template_dir}/Caddyfile.example" ]; then
@@ -167,6 +284,25 @@ mb_net_deploy() {
     # Copy frps config if exists
     if [ -f "${template_dir}/frps.toml.example" ]; then
         cp "${template_dir}/frps.toml.example" "${deploy_dir}/frps.toml"
+    fi
+
+    # Copy HAProxy config if exists (load-balancing template)
+    if [ -f "${template_dir}/haproxy.cfg" ]; then
+        cp "${template_dir}/haproxy.cfg" "${deploy_dir}/haproxy.cfg"
+        mkdir -p "${deploy_dir}/certs"
+    fi
+
+    # Copy Nginx upstream config if exists (load-balancing template)
+    if [ -f "${template_dir}/nginx-upstream.conf" ]; then
+        cp "${template_dir}/nginx-upstream.conf" "${deploy_dir}/nginx-upstream.conf"
+    fi
+
+    # Copy SSO integration snippets if exists (sso template)
+    if [ -f "${template_dir}/traefik-middleware.yml" ]; then
+        cp "${template_dir}/traefik-middleware.yml" "${deploy_dir}/traefik-middleware.yml"
+    fi
+    if [ -f "${template_dir}/caddy-handler.yml" ]; then
+        cp "${template_dir}/caddy-handler.yml" "${deploy_dir}/caddy-handler.yml"
     fi
 
     # Handle .env
