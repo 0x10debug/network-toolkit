@@ -2,30 +2,28 @@
     # Global options (Caddy v2.9)
     admin off
     auto_https disable_redirects
-    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
-    protocols h1 h2 h3
-    # Email for Let's Encrypt
-    email {$LETSENCRYPT_EMAIL:}
+    # Optional ACME account email for expiry notices:
+    # email you@example.com
+}
 
-    # Default security headers (snippet)
-    (security_headers) {
-        header {
-            Strict-Transport-Security "max-age=31536000; includeSubDomains"
-            X-Content-Type-Options "nosniff"
-            X-Frame-Options "DENY"
-            Referrer-Policy "strict-origin-when-cross-origin"
-            Permissions-Policy "geolocation=(), microphone=(), camera=()"
-        }
+# Default security headers (snippet)
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
     }
+}
 
-    # Logging snippet
-    (logging) {
-        log {
-            output file /data/caddy/access.log {
-                roll_size 50mb
-                roll_keep 3
-            }
-            format json
+# Logging snippet
+(logging) {
+    log {
+        output file /data/caddy/access.log {
+            roll_size 50mb
+            roll_keep 3
         }
+        format json
     }
 }

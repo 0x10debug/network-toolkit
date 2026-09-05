@@ -4,19 +4,22 @@
 # HTTP/3 runs over QUIC (UDP), so the compose file must map UDP 443 in addition
 # to TCP 443, and the firewall must allow inbound UDP 443.
 #
-# Copy to Caddyfile and let Caddy read {$PRIMARY_DOMAIN}, {$APP_HOST},
-# {$APP_PORT} from the environment (set in .env / compose).
+# Copy to Caddyfile and let Caddy read {$PRIMARY_DOMAIN:example.com}, {$APP_HOST:app},
+# {$APP_PORT:8080} from the environment (set in .env / compose).
+
+# Caddy has HTTP/1.1, HTTP/2, and HTTP/3 enabled by default. To pin or
+# restrict the served protocols, set them explicitly in the global servers
+# block as below.
 
 {
-    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
-    # This is the key directive for HTTP/3. Without it, Caddy still supports
-    # HTTP/3 by default when UDP 443 is available, but setting it explicitly
-    # makes the intent clear and lets you control which protocols are served.
-    protocols h1 h2 h3
+    servers {
+        # h3 = HTTP/3 over QUIC, served on UDP 443
+        protocols h1 h2 h3
+    }
 }
 
-{$PRIMARY_DOMAIN} {
-    reverse_proxy {$APP_HOST}:{$APP_PORT} {
+{$PRIMARY_DOMAIN:example.com} {
+    reverse_proxy {$APP_HOST:app}:{$APP_PORT:8080} {
         # Active health check (Caddy v2.9)
         health_uri /health
         health_interval 30s

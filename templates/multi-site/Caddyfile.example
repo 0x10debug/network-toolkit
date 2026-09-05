@@ -3,16 +3,11 @@
 # Copy to Caddyfile. Each block is one domain routed to its own backend.
 # Add or remove blocks to match the number of sites you host.
 #
-# HTTP/3 (QUIC) is enabled via the global protocols directive below.
-# The compose file maps UDP 443 so QUIC traffic reaches Caddy.
+# HTTP/3 (QUIC) is enabled by default in Caddy 2; the compose file maps
+# UDP 443 so QUIC traffic reaches Caddy.
 
-{
-    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
-    protocols h1 h2 h3
-}
-
-{$SITE_1_DOMAIN} {
-    reverse_proxy {$SITE_1_HOST}:{$SITE_1_PORT} {
+{$SITE_1_DOMAIN:site1.example.com} {
+    reverse_proxy {$SITE_1_HOST:app1}:{$SITE_1_PORT:8081} {
         # Active health check (Caddy v2.9)
         health_uri /health
         health_interval 30s
@@ -32,8 +27,8 @@
     }
 }
 
-{$SITE_2_DOMAIN} {
-    reverse_proxy {$SITE_2_HOST}:{$SITE_2_PORT} {
+{$SITE_2_DOMAIN:site2.example.com} {
+    reverse_proxy {$SITE_2_HOST:app2}:{$SITE_2_PORT:8082} {
         # Active health check (Caddy v2.9)
         health_uri /health
         health_interval 30s

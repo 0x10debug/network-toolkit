@@ -355,7 +355,7 @@ _mb_net_env_generate() {
 
         if [ -z "$value" ]; then
             case "$key" in
-                *_TOKEN|*_SECRET|FRP_TOKEN)
+                *_TOKEN|*_SECRET)
                     echo "${key}=$(head -c 32 /dev/urandom | LC_ALL=C tr -dc 'a-zA-Z0-9')"
                     mb_detail "Generated: $key"
                     ;;

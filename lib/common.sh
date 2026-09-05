@@ -4,11 +4,8 @@
 
 set -euo pipefail
 
-MB_NET_VERSION="1.0.0"
-
 MB_NET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MB_TEMPLATES_DIR="${MB_NET_DIR}/templates"
-MB_COMPONENTS_DIR="${MB_NET_DIR}/components"
 MB_DEPLOY_DIR="${MB_DEPLOY_DIR:-/opt/mb-net}"
 MB_PROXY_NETWORK="${MB_PROXY_NETWORK:-mb-proxy}"
 

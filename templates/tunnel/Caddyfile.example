@@ -3,16 +3,11 @@
 # Caddy forwards traffic to localhost:TUNNEL_LOCAL_PORT, which is the port the
 # frp server exposes from the home network via the tunnel.
 #
-# HTTP/3 (QUIC) is enabled via the global protocols directive below.
-# The compose file maps UDP 443 so QUIC traffic reaches Caddy.
+# HTTP/3 (QUIC) is enabled by default in Caddy 2; the compose file maps
+# UDP 443 so QUIC traffic reaches Caddy.
 
-{
-    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
-    protocols h1 h2 h3
-}
-
-{$TUNNEL_DOMAIN} {
-    reverse_proxy localhost:{$TUNNEL_LOCAL_PORT} {
+{$TUNNEL_DOMAIN:tunnel.example.com} {
+    reverse_proxy localhost:{$TUNNEL_LOCAL_PORT:8080} {
         # Active health check (Caddy v2.9) — the tunnel target may go offline
         # when the home frp client disconnects; this detects it quickly.
         health_uri /

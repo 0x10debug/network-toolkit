@@ -1,5 +1,7 @@
 # VPS Network Toolkit — Reverse Proxy, SSL & Tunnel in One Command
 
+[![CI](https://github.com/0x10debug/network-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/0x10debug/network-toolkit/actions/workflows/ci.yml)
+
 Expose your self-hosted apps to the internet with a secure reverse proxy, automatic SSL certificates, and NAT traversal—all configured in one command. Built for VPS and Docker, this toolkit combines Caddy, frp, and DDNS into ready-to-deploy templates. No more piecing together separate tools for reverse proxy, Let's Encrypt, and tunnel setup. Choose a template, enter your domain, and your services are live with HTTPS.
 
 > **Just hardened your VPS?** Deploy the `website` template first — it gives you a reverse proxy with automatic SSL. Then deploy your apps with [compose-recipes](https://github.com/0x10debug/compose-recipes) and route them through the proxy.

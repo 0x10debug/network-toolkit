@@ -4,16 +4,11 @@
 # network; the second block routes through the frp tunnel to a home service.
 # Add or remove blocks as needed.
 #
-# HTTP/3 (QUIC) is enabled via the global protocols directive below.
-# The compose file maps UDP 443 so QUIC traffic reaches Caddy.
+# HTTP/3 (QUIC) is enabled by default in Caddy 2; the compose file maps
+# UDP 443 so QUIC traffic reaches Caddy.
 
-{
-    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
-    protocols h1 h2 h3
-}
-
-{$PRIMARY_DOMAIN} {
-    reverse_proxy {$PRIMARY_DOMAIN}:8080 {
+{$PRIMARY_DOMAIN:example.com} {
+    reverse_proxy {$PRIMARY_DOMAIN:example.com}:8080 {
         # Active health check (Caddy v2.9)
         health_uri /health
         health_interval 30s
@@ -33,7 +28,7 @@
     }
 }
 
-home.{$PRIMARY_DOMAIN} {
+home.{$PRIMARY_DOMAIN:example.com} {
     reverse_proxy localhost:8080 {
         # Active health check (Caddy v2.9) — detects tunnel disconnection
         health_uri /

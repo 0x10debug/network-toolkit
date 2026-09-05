@@ -1,18 +1,13 @@
 # Caddyfile.example — single-site reverse proxy with security headers (Caddy v2.9)
 #
-# Copy to Caddyfile and let Caddy read {$PRIMARY_DOMAIN}, {$APP_HOST},
-# {$APP_PORT} from the environment (set in .env / compose).
+# Copy to Caddyfile and let Caddy read {$PRIMARY_DOMAIN:example.com}, {$APP_HOST:app},
+# {$APP_PORT:8080} from the environment (set in .env / compose).
 #
-# HTTP/3 (QUIC) is enabled via the global protocols directive below.
-# The compose file maps UDP 443 so QUIC traffic reaches Caddy.
+# HTTP/3 (QUIC) is enabled by default in Caddy 2; the compose file maps
+# UDP 443 so QUIC traffic reaches Caddy.
 
-{
-    # Enable HTTP/1.1, HTTP/2, and HTTP/3 (QUIC) — Caddy v2.9
-    protocols h1 h2 h3
-}
-
-{$PRIMARY_DOMAIN} {
-    reverse_proxy {$APP_HOST}:{$APP_PORT} {
+{$PRIMARY_DOMAIN:example.com} {
+    reverse_proxy {$APP_HOST:app}:{$APP_PORT:8080} {
         # Active health check (Caddy v2.9) — marks the backend down if it
         # stops responding, so requests fail fast instead of hanging.
         health_uri /health

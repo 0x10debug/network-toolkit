@@ -1,0 +1,11 @@
+# Gitleaks configuration for network-toolkit.
+# Extends the default rule set and only narrows documented endpoints.
+
+[extend]
+useDefault = true
+
+[allowlist]
+  description = "Internal service endpoint referenced in documentation (Authelia forward-auth URL on the default port)"
+  regexes = [
+    '''authelia:9091''',
+  ]
