@@ -5,7 +5,7 @@
 useDefault = true
 
 [allowlist]
-  description = "Internal service endpoint referenced in documentation (Authelia forward-auth URL on the default port)"
-  regexes = [
-    '''authelia:9091''',
+  description = "Documentation-only config template; the flagged match is the Authelia forward-auth endpoint (authelia:9091), not a credential"
+  paths = [
+    '''templates/sso/authelia\.yml''',
   ]
