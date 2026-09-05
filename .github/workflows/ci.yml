@@ -67,7 +67,7 @@ jobs:
         run: |
           python3 - <<'EOF'
           import glob, sys, yaml
-          files = sorted(glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True'))
+          files = sorted(glob.glob('**/*.yml', recursive=True) + glob.glob('**/*.yaml', recursive=True))
           files = [f for f in files if not f.startswith('.github/')]
           bad = 0
           for f in files:
